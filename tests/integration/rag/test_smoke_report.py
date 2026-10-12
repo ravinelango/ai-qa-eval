@@ -47,7 +47,11 @@ def test_report_on_the_synthetic_corpus(tmp_path: Path) -> None:
     ingest(config, embedder, tokenizer_fingerprint=embedder.fingerprint)
     spec = SmokeSpec.model_validate(SYNTHETIC_SPEC)
     report = build_report(
-        spec, tmp_path / "spec.yaml", "s" * 64, build_retriever(config, embedder), synthetic=True
+        spec,
+        tmp_path / "spec.yaml",
+        "s" * 64,
+        build_retriever(config, embedder, tokenizer_fingerprint=embedder.fingerprint),
+        synthetic=True,
     )
     hits = {r.query_id: (r.hit, r.hit_rank) for r in report.results}
     assert hits["L1"] == (True, 1)
@@ -67,6 +71,10 @@ def test_report_on_the_synthetic_corpus(tmp_path: Path) -> None:
         {**SYNTHETIC_SPEC, "min_hit_rate": {"section_lookup": 1.0, "paraphrase": 0.6}}
     )
     failing = build_report(
-        stricter, tmp_path / "s.yaml", "s" * 64, build_retriever(config, embedder), synthetic=True
+        stricter,
+        tmp_path / "s.yaml",
+        "s" * 64,
+        build_retriever(config, embedder, tokenizer_fingerprint=embedder.fingerprint),
+        synthetic=True,
     )
     assert failing.passed is False

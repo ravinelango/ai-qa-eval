@@ -170,16 +170,16 @@ def _parse_section(element: Element, doc_id: str, parents: tuple[str, ...]) -> l
 
     # (element locator, text, leading markers) for every paragraph, in order.
     paragraph_elements: list[tuple[str, str, list[str]]] = []
-    p_index = 0
+    seen_tags: dict[str, int] = {}  # "P[3]" means the third <P> child, as in XPath
     for child in _children(element):
         if child.tag == "HEAD" or child.tag in IGNORED_TAGS:
             continue
         if child.tag not in PARAGRAPH_TAGS and not child.tag.startswith("FP-"):
             raise SourceParseError(f"{where}: unexpected element <{child.tag}> in a section")
-        p_index += 1
+        seen_tags[child.tag] = seen_tags.get(child.tag, 0) + 1
         text = element_text(child)
         if text:
-            locator = f"{node}/{child.tag}[{p_index}]"
+            locator = f"{node}/{child.tag}[{seen_tags[child.tag]}]"
             paragraph_elements.append((locator, text, leading_markers(text)[0]))
     all_markers = [m for _, _, markers in paragraph_elements for m in markers]
 

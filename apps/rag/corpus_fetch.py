@@ -5,10 +5,12 @@
     uv run python -m apps.rag.corpus_fetch --render   (re-render SOURCES.md only)
 
 Ingestion never downloads anything. This command is the only code that does: it
-fetches each listed document, checks it is the expected kind of file, writes it
-into data/corpus/, and rewrites the snapshot fields in sources.yaml (retrieval
-date, SHA-256, size, and for eCFR the as-of date and latest amendment). Review the
-diff before committing: a changed SHA-256 means the official text changed.
+fetches each listed document and checks it is the expected kind of file. Only when
+every requested document has been fetched and checked does it write the files into
+data/corpus/ and rewrite the snapshot fields in sources.yaml (retrieval date,
+SHA-256, size, and for eCFR the as-of date and latest amendment); a failure changes
+nothing. Review the diff before committing: a changed SHA-256 means the official
+text changed.
 
 Descriptive fields (title, kind, domain, issue date, reuse notice) are written by a
 person who has read the document and its reuse notice; this tool never infers them.
@@ -17,6 +19,7 @@ person who has read the document and its reuse notice; this tool never infers th
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from collections.abc import Iterable
@@ -28,7 +31,7 @@ from typing import Any
 import defusedxml.ElementTree as SafeET
 
 from apps.core.redact import configure_logging
-from apps.rag.config import RagConfig, file_sha256
+from apps.rag.config import RagConfig
 from apps.rag.corpus import (
     CorpusManifest,
     SourceDocument,
@@ -102,8 +105,9 @@ class RefreshResult:
 
 
 def refresh_document(
-    document: SourceDocument, corpus_dir: Path, *, fetch: Fetcher, today: date
-) -> SourceDocument:
+    document: SourceDocument, *, fetch: Fetcher, today: date
+) -> tuple[SourceDocument, bytes]:
+    """Fetch and check one document. Writes nothing: returns the updated entry and bytes."""
     update: dict[str, Any] = {}
     if document.ecfr is not None:
         ref = document.ecfr
@@ -119,12 +123,8 @@ def refresh_document(
         check_pdf(data, document.source_url)
     else:
         raise CorpusError(f"{document.doc_id}: no source_url to fetch")
-    path = corpus_dir / document.file
-    tmp = path.with_suffix(path.suffix + ".part")
-    tmp.write_bytes(data)
-    tmp.replace(path)
-    update.update(retrieved=today, sha256=file_sha256(path), bytes=len(data))
-    return SourceDocument.model_validate({**document.model_dump(), **update})
+    update.update(retrieved=today, sha256=hashlib.sha256(data).hexdigest(), bytes=len(data))
+    return SourceDocument.model_validate({**document.model_dump(), **update}), data
 
 
 def refresh(
@@ -144,14 +144,21 @@ def refresh(
     day = today or datetime.now(UTC).date()
     results: list[RefreshResult] = []
     documents: list[SourceDocument] = []
+    downloads: list[tuple[Path, bytes]] = []
+    # Fetch and check everything first; any failure leaves the snapshot untouched.
     for document in manifest.documents:
         if wanted and document.doc_id not in wanted:
             documents.append(document)
             continue
-        fresh = refresh_document(document, corpus_dir, fetch=fetch, today=day)
+        fresh, data = refresh_document(document, fetch=fetch, today=day)
         results.append(RefreshResult(document.doc_id, document.sha256, fresh.sha256 or ""))
         documents.append(fresh)
+        downloads.append((corpus_dir / document.file, data))
     updated = CorpusManifest(schema_version=manifest.schema_version, documents=tuple(documents))
+    for path, data in downloads:
+        tmp = path.with_suffix(path.suffix + ".part")
+        tmp.write_bytes(data)
+        tmp.replace(path)
     dump_sources(updated, sources_path)
     (corpus_dir / "SOURCES.md").write_text(render_sources_md(updated), encoding="utf-8")
     return results

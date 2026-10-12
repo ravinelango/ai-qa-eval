@@ -57,11 +57,13 @@ def _pinned(tmp_path: Path, **files: bytes) -> EmbeddingSettings:
     return EmbeddingSettings.model_validate(data)
 
 
-def test_shipped_config_is_unpinned_so_the_real_model_refuses_to_start() -> None:
-    config = RagConfig.load()
-    assert config.embedding.is_pinned is False
+def test_unpinned_model_refuses_to_start(tmp_path: Path) -> None:
+    unpinned = EmbeddingSettings.model_validate(
+        {**_pinned(tmp_path, model=b"m", tokenizer=b"t").model_dump(mode="json"), "revision": None}
+    )
+    assert unpinned.is_pinned is False
     with pytest.raises(EmbedderError, match="not pinned"):
-        OnnxEmbedder(config.embedding, config.root)
+        OnnxEmbedder(unpinned, tmp_path)
 
 
 def test_missing_or_mismatched_model_files_are_refused(tmp_path: Path) -> None:
@@ -73,14 +75,22 @@ def test_missing_or_mismatched_model_files_are_refused(tmp_path: Path) -> None:
         OnnxEmbedder(settings, tmp_path)
 
 
-def test_default_suite_cannot_load_the_real_model(tmp_path: Path) -> None:
+def test_default_suite_sets_the_flag_before_anything_runs(pytestconfig: pytest.Config) -> None:
+    if pytestconfig.getoption("--run-model"):
+        pytest.skip("--run-model lifts the flag")
+    assert os.environ[FORBID_MODEL_LOAD_ENV] == "1"
+
+
+def test_the_flag_stops_the_real_model_loading(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(FORBID_MODEL_LOAD_ENV, "1")
     tokenizer = make_tokenizer(tmp_path / "tokenizer.json").read_bytes()
     (tmp_path / "onnx").mkdir()
     (tmp_path / "onnx" / "model.onnx").write_bytes(b"not a real model")
     settings = _pinned(tmp_path, model=b"not a real model", tokenizer=tokenizer)
     # Pins and files check out, so construction gets as far as loading the model,
-    # where the flag set by tests/conftest.py stops it, however the loader is reached.
-    assert os.environ[FORBID_MODEL_LOAD_ENV] == "1"
+    # where the flag stops it, however the loader is reached.
     with pytest.raises(EmbedderError, match="loading the real embedding model is forbidden"):
         OnnxEmbedder(settings, tmp_path)
     with pytest.raises(EmbedderError, match="forbidden"):

@@ -8,7 +8,8 @@ SHA-256, the full model call and the trace ID.
 
 Behavior classes: "answer", "dont_know" and "refuse" are the model's own choice.
 "invalid" means the output broke the answer contract (not one JSON object of the
-required shape, or cut off at max_tokens); the raw text is kept in `answer`.
+required shape, or cut off at max_tokens); the raw text is kept in `answer`, and a
+citation list in otherwise malformed JSON is still recorded and checked.
 "error" means the model call failed; the error is in `call.error`. An API-level
 refusal (stop_reason "refusal") is recorded as "refuse" with `api_refusal=True`.
 
@@ -77,14 +78,19 @@ def parse_model_output(response: CompletionResponse) -> ParsedOutput:
     if fenced := _FENCED.match(body):
         body = fenced.group("body").strip()
     try:
-        parsed = ModelAnswer.model_validate(json.loads(body))
+        raw = json.loads(body)
     except json.JSONDecodeError as exc:
         return ParsedOutput(behavior="invalid", answer=text, citations=[], error=f"not JSON: {exc}")
+    try:
+        parsed = ModelAnswer.model_validate(raw)
     except ValidationError as exc:
+        # Keep any citation list the output carried, so it can still be flagged.
+        cited = raw.get("citations") if isinstance(raw, dict) else None
+        citations = [c for c in cited if isinstance(c, str)] if isinstance(cited, list) else []
         return ParsedOutput(
             behavior="invalid",
             answer=text,
-            citations=[],
+            citations=citations,
             error=f"JSON does not match the answer contract: {exc.error_count()} error(s)",
         )
     if parsed.behavior == "answer" and not parsed.answer.strip():

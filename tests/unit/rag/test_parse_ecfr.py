@@ -177,6 +177,14 @@ def _xml(section_body: str) -> bytes:
     ).encode()
 
 
+def test_element_locations_count_each_tag_separately() -> None:
+    units = parse_ecfr_part(
+        _xml("<P>(a) one</P><FP>flush</FP><P>(b) two</P>"), doc_id="d", part="99"
+    )
+    elements = [b.element for u in units for b in u.blocks]
+    assert elements == ["DIV8[§ 99.1]/P[1]", "DIV8[§ 99.1]/FP[1]", "DIV8[§ 99.1]/P[2]"]
+
+
 def test_unknown_elements_stop_the_parse_instead_of_being_dropped() -> None:
     with pytest.raises(SourceParseError, match="unexpected element <EXTRACT>"):
         parse_ecfr_part(_xml("<P>(a) x</P><EXTRACT>y</EXTRACT>"), doc_id="d", part="99")

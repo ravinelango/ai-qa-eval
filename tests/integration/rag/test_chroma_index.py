@@ -82,6 +82,28 @@ def test_query_returns_cosine_similarity_best_first(tmp_path: Path) -> None:
     assert scores == pytest.approx([1.0, 0.6, 0.0], abs=1e-5)
 
 
+def test_an_interrupted_sync_leaves_an_index_that_is_refused_then_rebuilt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from chromadb.api.models.Collection import Collection
+
+    index = _index(tmp_path)
+
+    def broken_upsert(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("interrupted")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Collection, "upsert", broken_upsert)
+        with pytest.raises(RuntimeError, match="interrupted"):
+            index.sync(CHUNKS, VECTORS, STAMP)
+    assert index.stamp() is None
+    with pytest.raises(StaleIndexError, match="different inputs"):
+        index.query([1.0, 0.0, 0.0], 1, STAMP)
+    report = index.sync(CHUNKS, VECTORS, STAMP)
+    assert (report.replaced_collection, report.total) == (True, 3)
+    assert index.query([1.0, 0.0, 0.0], 1, STAMP)[0][0] == "doc/a"
+
+
 def test_query_refuses_a_missing_or_stale_index(tmp_path: Path) -> None:
     index = _index(tmp_path)
     with pytest.raises(StaleIndexError, match="no index"):

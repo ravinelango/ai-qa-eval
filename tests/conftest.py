@@ -4,8 +4,9 @@ Default runs execute unit and offline integration tests with sockets disabled
 (pytest-socket), so the suite cannot reach the network by accident. Live tests
 call a paid API and run only with --run-live; an API key alone never enables them.
 
-The default suite never loads the real embedding model: loading it raises unless a
-test is in tests/model/, which runs only with --run-model (no network; it needs the
+The default suite never loads the real embedding model. Before any test or fixture
+runs, pytest_configure sets the flag that makes the model loader raise; only
+--run-model lifts it, for the tests in tests/model/ (no network; they need the
 pinned model files from `make model-fetch`).
 """
 
@@ -37,6 +38,11 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    if not config.getoption("--run-model"):
+        os.environ[embedding.FORBID_MODEL_LOAD_ENV] = "1"
+
+
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     run_live = config.getoption("--run-live")
     run_model = config.getoption("--run-model")
@@ -56,16 +62,6 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             item.add_marker(pytest.mark.skip(reason="live test: ANTHROPIC_API_KEY is not set"))
         else:
             item.add_marker(pytest.mark.enable_socket)
-
-
-@pytest.fixture(autouse=True)
-def forbid_real_embedding_model(
-    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    if request.node.get_closest_marker("model"):
-        monkeypatch.delenv(embedding.FORBID_MODEL_LOAD_ENV, raising=False)
-    else:
-        monkeypatch.setenv(embedding.FORBID_MODEL_LOAD_ENV, "1")
 
 
 @pytest.fixture

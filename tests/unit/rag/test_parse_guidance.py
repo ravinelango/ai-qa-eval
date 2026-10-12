@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pypdf.generic import Destination
 
 from apps.rag.corpus import PdfOptions
 from apps.rag.errors import SourceParseError
@@ -53,6 +54,15 @@ def test_page_furniture_is_removed() -> None:
     assert units["II.A"].blocks[0].text.endswith("earlier value.")  # page number "2" dropped
 
 
+def test_numbers_and_numeral_words_inside_a_page_are_kept() -> None:
+    pdf = PdfText(
+        pages=("I. SCOPE\nCount\n21\nXI\ncivil\nEnd of scope.\n4\n",),
+        outline=(OutlineEntry(1, "I. SCOPE", 1),),
+    )
+    # Only the trailing "4" is a page number.
+    assert _parse(pdf)["I"].blocks[0].text == "Count 21 XI civil End of scope."
+
+
 def test_section_spanning_pages_keeps_one_block_per_page() -> None:
     pdf = PdfText(
         pages=(
@@ -91,6 +101,22 @@ def test_table_of_contents_lines_and_skipped_pages() -> None:
     )
     assert [b.text for b in _parse(pdf)["front"].blocks] == ["TABLE OF CONTENTS"]
     assert "front" not in _parse(pdf, PdfOptions(skip_pages=(1,)))
+
+
+def test_outline_entry_without_a_page_stops_the_parse(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pypdf import PdfReader
+
+    data = make_pdf(GUIDANCE_PAGES, GUIDANCE_OUTLINE)
+    original = PdfReader.get_destination_page_number
+
+    def lose_one_page(reader: PdfReader, destination: Destination) -> int | None:
+        if destination.title == "B. Passwords":
+            return -1
+        return original(reader, destination)
+
+    monkeypatch.setattr(PdfReader, "get_destination_page_number", lose_one_page)
+    with pytest.raises(SourceParseError, match=r"'B\. Passwords' has no title or no page"):
+        read_pdf(data)
 
 
 def test_no_outline_stops_the_parse() -> None:

@@ -109,6 +109,27 @@ def test_refresh_rejects_unexpected_content(tmp_path: Path) -> None:
     assert not (tmp_path / "data" / "corpus" / "guidance.pdf").exists()
 
 
+def test_a_failed_refresh_changes_nothing(tmp_path: Path) -> None:
+    config = _corpus(tmp_path, ECFR_DOC, GUIDANCE_DOC)
+    xml = SYNTHETIC_ECFR.read_bytes()
+    refresh(
+        config, fetch=ScriptedFetcher({**_ecfr_responses(xml), GUIDANCE_DOC["source_url"]: PDF})
+    )
+    corpus = tmp_path / "data" / "corpus"
+    before = {p.name: p.read_bytes() for p in corpus.iterdir()}
+
+    class FailsOnPdf(ScriptedFetcher):
+        def __call__(self, url: str) -> bytes:
+            if url == GUIDANCE_DOC["source_url"]:
+                raise OSError("network down")
+            return super().__call__(url)
+
+    changed_xml = xml.replace(b"Placeholder scope sentence", b"Revised scope sentence")
+    with pytest.raises(OSError, match="network down"):
+        refresh(config, fetch=FailsOnPdf(_ecfr_responses(changed_xml)))
+    assert {p.name: p.read_bytes() for p in corpus.iterdir()} == before
+
+
 def test_downloads_are_https_only() -> None:
     with pytest.raises(RagError, match="non-HTTPS"):
         https_fetch("http://www.fda.gov/media/1/download")

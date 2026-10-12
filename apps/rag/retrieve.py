@@ -10,6 +10,7 @@ from apps.core.tracing.base import Tracer
 from apps.core.tracing.local import NoopTracer
 from apps.rag.chunking import Chunk, ChunkManifest, read_manifest
 from apps.rag.config import RagConfig
+from apps.rag.corpus import load_sources
 from apps.rag.embedding import Embedder
 from apps.rag.errors import StaleIndexError
 from apps.rag.index import ChunkIndex, IndexStamp
@@ -97,10 +98,37 @@ class Retriever:
         )
 
 
+def check_manifest_is_current(
+    manifest: ChunkManifest, config: RagConfig, embedder: Embedder, tokenizer_fingerprint: str
+) -> None:
+    """Refuse a chunk manifest built from other inputs than the current configuration."""
+    sources = load_sources(config.resolve(config.corpus.sources))
+    problems = [
+        what
+        for what, same in (
+            ("the corpus (sources.yaml)", manifest.corpus_fingerprint == sources.fingerprint()),
+            ("chunking.version", manifest.chunker_version == config.chunking.version),
+            ("the tokenizer", manifest.tokenizer_fingerprint == tokenizer_fingerprint),
+            ("the token limit", manifest.max_tokens == embedder.max_tokens),
+        )
+        if not same
+    ]
+    if problems:
+        raise StaleIndexError(
+            "the chunk manifest does not match the current configuration (changed: "
+            f"{'; '.join(problems)}); run make ingest"
+        )
+
+
 def build_retriever(
-    config: RagConfig, embedder: Embedder, *, tracer: Tracer | None = None
+    config: RagConfig,
+    embedder: Embedder,
+    *,
+    tokenizer_fingerprint: str,
+    tracer: Tracer | None = None,
 ) -> Retriever:
     manifest, sha = read_manifest(config.resolve(config.chunking.manifest))
+    check_manifest_is_current(manifest, config, embedder, tokenizer_fingerprint)
     index = ChunkIndex(config.resolve(config.index.path), config.index)
     return Retriever(
         embedder=embedder,

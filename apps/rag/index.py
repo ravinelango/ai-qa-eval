@@ -8,7 +8,9 @@ retriever refuses a collection whose record does not match the current inputs.
 Syncing is idempotent: chunks are upserted by their stable IDs and IDs no longer in
 the manifest are deleted, so repeated ingestion never duplicates a chunk. Vectors
 from a different embedding model are not comparable, so a change of embedding
-fingerprint replaces the collection instead.
+fingerprint replaces the collection instead. While a sync runs, the collection
+carries a "building" marker instead of a stamp, so an interrupted sync leaves an
+index that queries refuse and the next sync rebuilds.
 """
 
 from __future__ import annotations
@@ -27,6 +29,9 @@ from apps.rag.errors import StaleIndexError
 if TYPE_CHECKING:
     from chromadb.api import ClientAPI
     from chromadb.api.models.Collection import Collection
+
+# Collection metadata while a sync is in progress. It is not a valid stamp.
+BUILDING = {"state": "building"}
 
 
 @dataclass(frozen=True)
@@ -88,7 +93,7 @@ class ChunkIndex:
         except NotFoundError:
             return None
 
-    def _create(self, stamp: IndexStamp) -> Collection:
+    def _create(self) -> Collection:
         return self._client.create_collection(
             self.settings.collection,
             configuration={
@@ -98,7 +103,7 @@ class ChunkIndex:
                     "ef_search": self.settings.ef_search,
                 }
             },
-            metadata=stamp.as_metadata(),
+            metadata=BUILDING,
             embedding_function=None,
         )
 
@@ -120,7 +125,9 @@ class ChunkIndex:
             self._client.delete_collection(self.settings.collection)
             collection, replaced = None, True
         if collection is None:
-            collection = self._create(stamp)
+            collection = self._create()
+        else:
+            collection.modify(metadata=BUILDING)
 
         wanted = {c.id for c in chunks}
         stale = sorted(set(collection.get(include=[])["ids"]) - wanted)
@@ -139,10 +146,10 @@ class ChunkIndex:
                     for c in part
                 ],
             )
-        collection.modify(metadata=stamp.as_metadata())
         total = collection.count()
         if total != len(wanted):
             raise StaleIndexError(f"index holds {total} vectors for {len(wanted)} chunks")
+        collection.modify(metadata=stamp.as_metadata())
         return SyncReport(len(chunks), len(stale), replaced, total)
 
     def query(

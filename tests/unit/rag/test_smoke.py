@@ -38,6 +38,9 @@ def test_shipped_spec_fixes_top_k_and_thresholds_and_is_marked_unreviewed() -> N
         ("11.300(a)", "11.30", False),
         ("11.100(a)", "11.10", False),
         ("III.CA", "III.C", False),
+        ("11.50-intro#2", "11.50", True),
+        ("scope-of-application", "scope", False),
+        ("background-and-history", "background", False),
     ],
 )
 def test_matching_is_by_locator_boundary(locator: str, expected: str, hit: bool) -> None:

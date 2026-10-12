@@ -84,11 +84,16 @@ def load_spec(path: Path) -> tuple[SmokeSpec, str]:
 
 
 def matches(doc_id: str, locator: str, expectation: Expectation) -> bool:
-    """Same document, and the locator equals the expected one or is nested under it."""
+    """Same document, and the locator equals the expected one or is nested under it:
+    a paragraph "(", a guidance subsection ".", a split part "#", or the section's
+    introductory text "-intro". Slug locators such as "scope-of-application" do not
+    nest under "scope"."""
     if doc_id != expectation.doc_id:
         return False
     want = expectation.locator
-    return locator == want or any(locator.startswith(want + sep) for sep in "(-.#")
+    if locator in (want, f"{want}-intro") or locator.startswith(f"{want}-intro#"):
+        return True
+    return any(locator.startswith(want + sep) for sep in "(.#")
 
 
 class SmokeResult(_Strict):
@@ -229,7 +234,11 @@ def main(argv: list[str] | None = None) -> int:
     config = RagConfig.load()
     try:
         spec, spec_sha = load_spec(args.spec)
-        retriever = build_retriever(config, OnnxEmbedder(config.embedding, config.root))
+        retriever = build_retriever(
+            config,
+            OnnxEmbedder(config.embedding, config.root),
+            tokenizer_fingerprint=config.embedding.tokenizer_fingerprint(),
+        )
         report = build_report(
             spec,
             args.spec,

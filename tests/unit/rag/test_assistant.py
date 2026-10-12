@@ -155,6 +155,15 @@ def test_output_that_breaks_the_contract_is_invalid_and_kept(
     assert record.answer == record.call.response.text  # raw text kept verbatim
 
 
+def test_citations_in_contract_breaking_json_are_still_flagged() -> None:
+    body = {"behavior": "answer", "answer": "x", "citations": [EXPECTED_TOP, "made/up"], "n": 1}
+    assistant, _ = _assistant([ScriptedReply.text(json.dumps(body))])
+    record = assistant.answer(QUESTION)
+    assert record.behavior == "invalid"
+    assert record.cited_chunk_ids == [EXPECTED_TOP, "made/up"]
+    assert record.unretrieved_citations == ["made/up"]
+
+
 def test_fenced_json_is_accepted() -> None:
     body = json.dumps({"behavior": "answer", "answer": "[SCRIPTED]", "citations": [EXPECTED_TOP]})
     assistant, _ = _assistant([ScriptedReply.text(f"```json\n{body}\n```")])

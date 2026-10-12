@@ -29,10 +29,12 @@ from apps.rag.units import Block, SourceUnit, match_key, normalize_space
 
 FURNITURE = (
     re.compile(r"^Contains Nonbinding Recommendations$", re.IGNORECASE),
-    re.compile(r"^(\d{1,3}|[ivxlc]{1,6})$", re.IGNORECASE),  # bare page numbers
     re.compile(r"^Page \d+ of \d+$", re.IGNORECASE),
     re.compile(r"\.{5,}\s*\d+$"),  # table-of-contents leader lines
 )
+# A bare page number ("7", or "iii" in front matter) is furniture only as the first
+# or last line of its page; anywhere else it is content and is kept.
+PAGE_NUMBER = re.compile(r"^(\d{1,3}|[ivxlc]{1,6})$")
 _NUMBERING = re.compile(r"^(?P<num>[IVXLC]+|[A-Z]|\d{1,2}|[a-z])[.)]\s+(?P<rest>\S.*)$")
 # How many consecutive lines a heading may wrap across in the extracted text.
 MAX_HEADING_LINES = 3
@@ -70,8 +72,12 @@ def read_pdf(data: bytes) -> PdfText:
                 elif isinstance(item, Destination):
                     number = reader.get_destination_page_number(item)
                     title = normalize_space(str(item.title or ""))
-                    if title and number is not None and number >= 0:
-                        entries.append(OutlineEntry(level, title, number + 1))
+                    if not title or number is None or number < 0:
+                        # Skipping it would merge its text into the previous section.
+                        raise SourceParseError(
+                            f"outline entry {title!r} has no title or no page it points to"
+                        )
+                    entries.append(OutlineEntry(level, title, number + 1))
 
         walk(reader.outline, 1)
     except PdfReadError as exc:
@@ -84,10 +90,13 @@ def content_lines(pdf: PdfText, options: PdfOptions) -> list[_Line]:
     for number, text in enumerate(pdf.pages, start=1):
         if number in options.skip_pages:
             continue
-        for raw in text.splitlines():
-            line = normalize_space(raw)
-            if line and not any(p.search(line) for p in FURNITURE):
-                lines.append(_Line(number, line))
+        page = [normalize_space(raw) for raw in text.splitlines()]
+        page = [line for line in page if line and not any(p.search(line) for p in FURNITURE)]
+        if page and PAGE_NUMBER.match(page[-1]):
+            page.pop()
+        if page and PAGE_NUMBER.match(page[0]):
+            page.pop(0)
+        lines += [_Line(number, line) for line in page]
     return lines
 
 

@@ -64,7 +64,7 @@ def test_ingest_refuses_a_corpus_file_that_changed(config: RagConfig) -> None:
 
 def test_retrieval_over_the_ingested_index(config: RagConfig) -> None:
     ingest(config, EMBEDDER, tokenizer_fingerprint=EMBEDDER.fingerprint)
-    retriever = build_retriever(config, EMBEDDER)
+    retriever = build_retriever(config, EMBEDDER, tokenizer_fingerprint=EMBEDDER.fingerprint)
     record = retriever.retrieve("placeholder change logs that record the earlier value", top_k=3)
     assert record.results[0].chunk_id == "synthetic-part99/99.10(e)"
     assert [r.rank for r in record.results] == [1, 2, 3]
@@ -75,6 +75,26 @@ def test_retrieval_over_the_ingested_index(config: RagConfig) -> None:
 
 def test_retriever_refuses_an_index_built_with_another_embedder(config: RagConfig) -> None:
     ingest(config, EMBEDDER, tokenizer_fingerprint=EMBEDDER.fingerprint)
-    retriever = build_retriever(config, HashingEmbedder(dimensions=64, max_tokens=64))
-    with pytest.raises(StaleIndexError):
+    other = HashingEmbedder(dimensions=64, max_tokens=64)
+    retriever = build_retriever(config, other, tokenizer_fingerprint=EMBEDDER.fingerprint)
+    with pytest.raises(StaleIndexError, match="different inputs"):
         retriever.retrieve("anything")
+
+
+def test_retriever_refuses_a_manifest_older_than_the_corpus_or_chunker(config: RagConfig) -> None:
+    ingest(config, EMBEDDER, tokenizer_fingerprint=EMBEDDER.fingerprint)
+    sources = config.resolve(config.corpus.sources)
+    original = sources.read_text(encoding="utf-8")
+    # e.g. `make corpus-refresh` changed the corpus, but nobody re-ran ingest.
+    sources.write_text(original.replace("test only", "test only, revised"), encoding="utf-8")
+    with pytest.raises(StaleIndexError, match=r"changed: the corpus \(sources\.yaml\)"):
+        build_retriever(config, EMBEDDER, tokenizer_fingerprint=EMBEDDER.fingerprint)
+    sources.write_text(original, encoding="utf-8")
+
+    bumped = config.model_copy(
+        update={"chunking": config.chunking.model_copy(update={"version": 2})}
+    )
+    with pytest.raises(StaleIndexError, match=r"chunking\.version"):
+        build_retriever(bumped, EMBEDDER, tokenizer_fingerprint=EMBEDDER.fingerprint)
+    with pytest.raises(StaleIndexError, match="the tokenizer"):
+        build_retriever(config, EMBEDDER, tokenizer_fingerprint="other")

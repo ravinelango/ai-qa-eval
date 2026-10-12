@@ -8,7 +8,8 @@
 # top_k and the pass thresholds below were fixed before the first run; git history
 # shows that. A query passes when any of its top-k chunks matches an expectation:
 # same doc_id, and a locator equal to the expected one or nested under it
-# ("11.50" matches "11.50(a)" and "11.50-intro"; "11.10(e)" matches "11.10(e)#2").
+# ("11.50" matches "11.50(a)" and "11.50-intro"; "11.10(e)" matches "11.10(e)#2";
+# "III.C" matches "III.C.2"; "scope" does not match "scope-of-application").
 #
 # Queries about the guidance documents will be added once their text and section
 # structure are in the frozen corpus, before the first run.
