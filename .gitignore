@@ -1,0 +1,28 @@
+# Python / tooling
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Local run output (demo runs, local traces, caches). Evidence meant for review is
+# written under reports/ and committed deliberately.
+runs/
+.cache/
+data/chroma/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store

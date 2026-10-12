@@ -1,0 +1,19 @@
+# Spending limits for paid API calls (docs/decisions/0004).
+#
+# Limits cap *estimated* expenditure computed from config/models.yaml pricing.
+# They are not the provider's bill: actual charges are only known from the
+# Anthropic console.
+#
+# Interactive runs: a run planned above `approval_threshold_attempts` (worst case,
+# retries included) shows its estimate and waits for a "yes".
+# Unattended runs (CI): never prompt; they use a named profile below. A profile
+# with a null limit blocks paid execution. Values are set by the repo owner only.
+approval_threshold_attempts: 50
+
+profiles:
+  ci-eval-smoke:
+    max_request_attempts: null
+    max_estimated_cost_usd: null
+  ci-eval-full:
+    max_request_attempts: null
+    max_estimated_cost_usd: null
