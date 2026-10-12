@@ -4,8 +4,12 @@ A run file must be readable on its own, without Langfuse access: it stores the
 full requests, the responses or errors, measurements, configuration/version
 identifiers and the trace ID (a supplementary link only).
 
+RAG runs also store, for every question, the retrieved chunks themselves (ID,
+label, text, score, rank) and the parsed answer, and the manifest records the
+prompt hash and the corpus, chunk-manifest and embedding fingerprints.
+
 `synthetic=True` marks runs produced by the fake provider. Synthetic runs
-demonstrate plumbing; they are never evaluation evidence. Phase 1 extends this
+demonstrate plumbing; they are never evaluation evidence. Later phases extend this
 format with per-case scores.
 """
 
@@ -16,7 +20,7 @@ import shutil
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -28,7 +32,8 @@ from apps.core.redact import redact
 from apps.core.types import CompletionRequest, CompletionResponse, FailedAttempt
 
 # 2: CallRecord.settings, failed-attempt history, outstanding reservations.
-RUN_FILE_SCHEMA_VERSION = 2
+# 3: RAG fingerprints in the manifest; retrieval and answer records.
+RUN_FILE_SCHEMA_VERSION = 3
 
 
 class _Model(BaseModel):
@@ -47,6 +52,12 @@ class RunManifest(_Model):
     tracing_backend: str
     cache_policy: CachePolicy
     prompt_version: str | None = None
+    # SHA-256 of the prompt file, so an edited prompt cannot pass as the same version.
+    prompt_sha256: str | None = None
+    # What the retrieval index was built from (apps.rag; None for non-RAG runs).
+    corpus_fingerprint: str | None = None
+    chunk_manifest_sha256: str | None = None
+    embedding_fingerprint: str | None = None
     notes: str = ""
 
 
@@ -79,6 +90,55 @@ class CallRecord(_Model):
     error: dict[str, Any] | None = None
 
 
+class RetrievedChunkRecord(_Model):
+    rank: int
+    chunk_id: str
+    doc_id: str
+    doc_kind: str
+    label: str
+    heading_path: list[str]
+    # Cosine similarity between the query and chunk embeddings.
+    score: float
+    text: str
+    text_sha256: str
+
+
+class RetrievalRecord(_Model):
+    query: str
+    top_k: int
+    embedder: str
+    embedding_fingerprint: str
+    chunk_manifest_sha256: str
+    results: list[RetrievedChunkRecord]
+    trace_id: str | None = None
+
+
+# answer / refuse / dont_know: what the model chose. invalid: its output broke the
+# answer contract (kept verbatim in `answer`). error: the model call failed.
+Behavior = Literal["answer", "refuse", "dont_know", "invalid", "error"]
+
+
+class AnswerRecord(_Model):
+    answer_id: str
+    question: str
+    behavior: Behavior
+    answer: str
+    # Exactly as the model gave them, in order, valid or not.
+    cited_chunk_ids: list[str]
+    # Cited IDs that were not among the retrieved chunks. Flagged, never dropped.
+    unretrieved_citations: list[str]
+    # behavior == "answer" with no citation of a retrieved chunk.
+    missing_citations: bool
+    output_error: str | None = None
+    # The API stopped with stop_reason "refusal" (not the model's own JSON choice).
+    api_refusal: bool = False
+    prompt_version: str
+    prompt_sha256: str
+    retrieval: RetrievalRecord
+    call: CallRecord
+    trace_id: str | None = None
+
+
 def call_settings(registry: ModelRegistry, request: CompletionRequest) -> CallSettings:
     spec = registry.resolve(request.model)
     provider = registry.provider_settings(spec.provider)
@@ -102,6 +162,8 @@ class RunFile(_Model):
     schema_version: int = RUN_FILE_SCHEMA_VERSION
     manifest: RunManifest
     calls: list[CallRecord]
+    retrievals: list[RetrievalRecord] = []
+    answers: list[AnswerRecord] = []
     budget: dict[str, Any] | None = None
 
 
