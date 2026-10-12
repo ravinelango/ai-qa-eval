@@ -1,0 +1,71 @@
+[project]
+name = "ai-qa-eval"
+version = "0.1.0"
+description = "LLM quality engineering portfolio: RAG eval harness, agent red-team suite, model-upgrade dashboard"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+# Exact pins. Each later phase adds its own dependencies here or in a group.
+dependencies = [
+    "anthropic==1.13.0",
+    "httpx2==2.13.1",
+    "langfuse==4.17.0",
+    "pydantic==2.14.1",
+    "pydantic-settings==2.15.0",
+    "pyyaml==6.0.3",
+]
+
+[dependency-groups]
+dev = [
+    "mypy==2.4.0",
+    "pre-commit==4.6.2",
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "pytest-socket==0.8.1",
+    "ruff==0.17.0",
+    "types-PyYAML==6.0.12.20260906",
+]
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# Top-level packages are listed explicitly; nothing is discovered implicitly.
+packages = ["apps", "evals", "redteam", "dashboard"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "N", "S", "PT", "TID"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# assert is the point of a test; S105/S106 fire on fake test credentials.
+"tests/**" = ["S101", "S105", "S106"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["apps", "evals", "redteam", "dashboard", "tests"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+# langfuse ships type hints, but we only touch it inside one adapter module.
+module = ["langfuse", "langfuse.*"]
+follow_untyped_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# --disable-socket proves the default suite needs no network. Live tests opt out explicitly.
+addopts = "-ra --strict-markers --disable-socket --allow-unix-socket"
+markers = [
+    "unit: fast, isolated, no I/O beyond tmp_path",
+    "integration: exercises real third-party SDKs offline (mock transports, in-memory exporters)",
+    "live: calls a paid external API; runs only with --run-live",
+]
+filterwarnings = ["error"]
