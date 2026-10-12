@@ -77,10 +77,11 @@ def fetch_pinned(settings: EmbeddingSettings, root: Path, fetch: Fetcher) -> lis
             "embedding.revision and both SHA-256 pins must be set in config/rag.yaml first; "
             "run with --pin to look them up"
         )
+    # The tokenizer first: it alone is enough to build the chunk manifest.
     return download_files(
         settings.repo,
         settings.revision,
-        [settings.model, settings.tokenizer],
+        [settings.tokenizer, settings.model],
         settings.local_path(root),
         fetch,
     )

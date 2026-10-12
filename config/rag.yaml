@@ -20,16 +20,19 @@ chunking:
 embedding:
   name: bge-small-en-v1.5
   repo: BAAI/bge-small-en-v1.5
-  # Exact commit SHA of the Hugging Face repo, and SHA-256 of each file at that
-  # revision. Null until the files are first downloaded and checked
-  # (`make model-fetch`); the real embedder refuses to load while any is null.
-  revision: null
+  # Exact commit of the Hugging Face repo (MIT license; last changed 2024-02-22) and
+  # the SHA-256 of each file at that revision. `make model-fetch` installs a file only
+  # if its download matches. The real embedder refuses to load files that differ.
+  revision: 5c38ec7c405ec4b44b94cc5a9bb96e735b38267a
   model:
     path: onnx/model.onnx
-    sha256: null
+    # The repo's Git LFS object ID for this file at the revision (an LFS oid is the
+    # SHA-256 of the content; 133,093,490 bytes), read 2026-10-12.
+    sha256: 828e1496d7fabb79cfa4dcd84fa38625c0d3d21da474a00f08db0f559940cf35
   tokenizer:
     path: tokenizer.json
-    sha256: null
+    # Computed from the download on 2026-10-12 (711,396 bytes).
+    sha256: d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66
   # Model weights are downloaded here and never committed.
   local_dir: .cache/models/bge-small-en-v1.5
   # The model's input limit, counted with special tokens ([CLS], [SEP]). Every text

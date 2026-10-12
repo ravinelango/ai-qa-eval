@@ -169,7 +169,7 @@ def test_model_fetch_installs_only_files_matching_their_pins(tmp_path: Path) -> 
         tokenizer=hashlib.sha256(TOKENIZER).hexdigest(),
     )
     files = model_fetch.fetch_pinned(settings, tmp_path, ScriptedFetcher(_hf(REV)))
-    assert [f.path for f in files] == ["onnx/model.onnx", "tokenizer.json"]
+    assert [f.path for f in files] == ["tokenizer.json", "onnx/model.onnx"]
     assert (tmp_path / "models" / "onnx" / "model.onnx").read_bytes() == MODEL
 
     tampered = {**_hf(REV), next(iter(_hf(REV))): b"other bytes"}
