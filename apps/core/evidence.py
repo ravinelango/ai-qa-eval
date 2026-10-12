@@ -132,6 +132,9 @@ class AnswerRecord(_Model):
     output_error: str | None = None
     # The API stopped with stop_reason "refusal" (not the model's own JSON choice).
     api_refusal: bool = False
+    # The error stopped the whole run (budget exhausted, paid calls not allowed,
+    # interrupt), not just this question; later questions were not attempted.
+    stopped_run: bool = False
     prompt_version: str
     prompt_sha256: str
     retrieval: RetrievalRecord

@@ -12,15 +12,21 @@ from pathlib import Path
 
 import pytest
 
+from apps.core.budget import BudgetGuard, BudgetLimits
 from apps.core.cache import CachePolicy
 from apps.core.client import ModelClient
-from apps.core.errors import PaidCallsNotAllowedError, ProviderBadRequestError
+from apps.core.errors import (
+    BudgetExceededError,
+    PaidCallsNotAllowedError,
+    ProviderBadRequestError,
+    ProviderTimeoutError,
+)
 from apps.core.evidence import RunFile, RunManifest, read_run_file, write_run_file
 from apps.core.models import ModelRegistry
 from apps.core.providers.fake import FakeBackend, ScriptedReply, Step
-from apps.core.tracing.local import RecordingTracer
+from apps.core.tracing.local import NoopTracer, RecordingTracer
 from apps.core.types import TextBlock
-from apps.rag.assistant import RagAssistant
+from apps.rag.assistant import RagAssistant, answer_record_of
 from apps.rag.chunking import build_manifest, chunk_corpus
 from apps.rag.config import GenerationSettings
 from apps.rag.corpus import SourceDocument
@@ -189,9 +195,88 @@ def test_api_refusal_and_provider_errors_are_recorded() -> None:
 
 def test_paid_generator_is_refused_without_explicit_opt_in() -> None:
     assistant, backend = _assistant([], model="sonnet")
-    with pytest.raises(PaidCallsNotAllowedError):
+    with pytest.raises(PaidCallsNotAllowedError) as caught:
         assistant.answer(QUESTION)
     assert backend.requests == []
+    record = answer_record_of(caught.value)
+    assert record is not None
+    assert record.stopped_run is True
+    assert record.call.error is not None
+    assert record.call.error["error_type"] == "PaidCallsNotAllowedError"
+
+
+def test_budget_stop_keeps_the_answer_record_then_propagates(tmp_path: Path) -> None:
+    # A paid alias served by the scripted backend: no network and no spend. The
+    # first attempt times out; the one-attempt budget then refuses the retry.
+    registry = ModelRegistry.load()
+    backend = FakeBackend(
+        [ProviderTimeoutError("timed out (scripted)", provider="anthropic")], name="anthropic"
+    )
+    guard = BudgetGuard(BudgetLimits(max_request_attempts=1, max_estimated_cost_usd=1.0))
+    client = ModelClient(
+        registry=registry,
+        backends={"anthropic": backend},
+        allow_paid=True,
+        guard=guard,
+        sleep=lambda _: None,
+    )
+    assistant = RagAssistant(
+        retriever=_retriever(),
+        completer=client,
+        registry=registry,
+        prompt=PROMPT,
+        generation=GenerationSettings(model="sonnet", max_tokens=512, prompt=Path("unused")),
+        tracer=NoopTracer(),
+    )
+    with pytest.raises(BudgetExceededError) as caught:
+        assistant.answer(QUESTION, answer_id="q7")
+
+    record = answer_record_of(caught.value)
+    assert record is not None
+    assert (record.answer_id, record.question) == ("q7", QUESTION)
+    assert (record.behavior, record.stopped_run) == ("error", True)
+    assert record.output_error is not None
+    assert "BudgetExceededError" in record.output_error
+    assert record.retrieval.results[0].chunk_id == EXPECTED_TOP
+    assert record.retrieval.results[0].text.startswith("(e) Use of placeholder change logs")
+    assert (record.prompt_version, record.prompt_sha256) == (PROMPT.tag, PROMPT.sha256)
+    settings = record.call.settings
+    assert (settings.model_alias, settings.model_id, settings.max_tokens) == (
+        "sonnet",
+        registry.resolve("sonnet").model_id,
+        512,
+    )
+    assert record.call.request.system == PROMPT.system
+    assert record.call.response is None
+    assert record.call.error is not None
+    assert record.call.error["error_type"] == "BudgetExceededError"
+    attempts = record.call.error["failed_attempts"]
+    assert [(a["error_type"], a["charge"]) for a in attempts] == [
+        ("ProviderTimeoutError", "uncertain")
+    ]
+    assert record.trace_id is None  # NoopTracer: the record stands alone
+
+    # The run-file writer can save it as it is.
+    run = RunFile(
+        manifest=RunManifest(
+            run_id="stopped-run",
+            kind="rag_answer_test",
+            synthetic=True,
+            created_at=datetime(2026, 1, 5, tzinfo=UTC),
+            git_sha=None,
+            git_dirty=None,
+            models_config_sha256=registry.source_sha256,
+            pricing_checked=registry.pricing_checked,
+            tracing_backend="none",
+            cache_policy=CachePolicy.BYPASS,
+            prompt_version=PROMPT.tag,
+            prompt_sha256=PROMPT.sha256,
+        ),
+        calls=[record.call],
+        answers=[record],
+    )
+    write_run_file(tmp_path / "run.json", run)
+    assert read_run_file(tmp_path / "run.json") == run
 
 
 def test_trace_records_prompt_version_and_retrieved_chunk_ids() -> None:

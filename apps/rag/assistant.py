@@ -13,6 +13,12 @@ citation list in otherwise malformed JSON is still recorded and checked.
 "error" means the model call failed; the error is in `call.error`. An API-level
 refusal (stop_reason "refusal") is recorded as "refuse" with `api_refusal=True`.
 
+A provider error ends only this question. Anything else that stops the call (the
+budget is exhausted, paid calls are not allowed, an interrupt) stops the run: the
+complete record (question, retrieval, prompt identity, resolved call settings and
+every failed attempt) is attached to the exception with `stopped_run=True`, where
+`answer_record_of` finds it for the run file, and the exception propagates.
+
 A valid citation only shows that the answer points at a chunk that was retrieved.
 It does not show that the chunk supports the answer, or that the answer is right.
 """
@@ -44,6 +50,13 @@ from apps.rag.prompts import PromptTemplate
 from apps.rag.retrieve import Retriever
 
 _FENCED = re.compile(r"^```(?:json)?\s*\n(?P<body>.*)\n```$", re.DOTALL)
+_RECORD_ATTRIBUTE = "answer_record"
+
+
+def answer_record_of(error: BaseException) -> AnswerRecord | None:
+    """The record of the question that was being answered when `error` stopped the run."""
+    record = getattr(error, _RECORD_ATTRIBUTE, None)
+    return record if isinstance(record, AnswerRecord) else None
 
 
 class ModelAnswer(BaseModel):
@@ -158,33 +171,65 @@ class RagAssistant:
                 parsed = ParsedOutput(
                     behavior="error", answer="", citations=[], error=f"{type(exc).__name__}"
                 )
+            except BaseException as exc:
+                # A stop for the whole run: keep the evidence, then let it propagate.
+                call = call.model_copy(update={"error": error_record(exc)})
+                parsed = ParsedOutput(
+                    behavior="error",
+                    answer="",
+                    citations=[],
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+                record = self._record(
+                    answer_id, question, retrieval, call, parsed, root.trace_id, stopped=True
+                )
+                setattr(exc, _RECORD_ATTRIBUTE, record)
+                root.update(output=_trace_output(record))
+                raise
             else:
                 call = call.model_copy(update={"response": response})
                 parsed = parse_model_output(response)
-            flagged = unretrieved(parsed.citations, retrieval)
-            valid = [c for c in parsed.citations if c not in flagged]
-            record = AnswerRecord(
-                answer_id=answer_id,
-                question=question,
-                behavior=parsed.behavior,
-                answer=parsed.answer,
-                cited_chunk_ids=parsed.citations,
-                unretrieved_citations=flagged,
-                missing_citations=parsed.behavior == "answer" and not valid,
-                output_error=parsed.error,
-                api_refusal=parsed.api_refusal,
-                prompt_version=self.prompt.tag,
-                prompt_sha256=self.prompt.sha256,
-                retrieval=retrieval,
-                call=call,
-                trace_id=root.trace_id,
-            )
-            root.update(
-                output={
-                    "behavior": record.behavior,
-                    "cited_chunk_ids": record.cited_chunk_ids,
-                    "unretrieved_citations": record.unretrieved_citations,
-                    "retrieved_chunk_ids": [r.chunk_id for r in retrieval.results],
-                }
-            )
+            record = self._record(answer_id, question, retrieval, call, parsed, root.trace_id)
+            root.update(output=_trace_output(record))
         return record
+
+    def _record(
+        self,
+        answer_id: str,
+        question: str,
+        retrieval: RetrievalRecord,
+        call: CallRecord,
+        parsed: ParsedOutput,
+        trace_id: str | None,
+        *,
+        stopped: bool = False,
+    ) -> AnswerRecord:
+        flagged = unretrieved(parsed.citations, retrieval)
+        valid = [c for c in parsed.citations if c not in flagged]
+        return AnswerRecord(
+            answer_id=answer_id,
+            question=question,
+            behavior=parsed.behavior,
+            answer=parsed.answer,
+            cited_chunk_ids=parsed.citations,
+            unretrieved_citations=flagged,
+            missing_citations=parsed.behavior == "answer" and not valid,
+            output_error=parsed.error,
+            api_refusal=parsed.api_refusal,
+            stopped_run=stopped,
+            prompt_version=self.prompt.tag,
+            prompt_sha256=self.prompt.sha256,
+            retrieval=retrieval,
+            call=call,
+            trace_id=trace_id,
+        )
+
+
+def _trace_output(record: AnswerRecord) -> dict[str, object]:
+    return {
+        "behavior": record.behavior,
+        "stopped_run": record.stopped_run,
+        "cited_chunk_ids": record.cited_chunk_ids,
+        "unretrieved_citations": record.unretrieved_citations,
+        "retrieved_chunk_ids": [r.chunk_id for r in record.retrieval.results],
+    }
