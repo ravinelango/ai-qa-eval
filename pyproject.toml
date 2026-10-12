@@ -3,6 +3,7 @@ name = "ai-qa-eval"
 version = "0.1.0"
 description = "LLM quality engineering portfolio: RAG eval harness, agent red-team suite, model-upgrade dashboard"
 readme = "README.md"
+authors = [{ name = "Ravin Elango" }]
 requires-python = ">=3.12,<3.13"
 # Exact pins. Each later phase adds its own dependencies here or in a group.
 dependencies = [

@@ -14,7 +14,7 @@
 # Queries about the guidance documents will be added once their text and section
 # structure are in the frozen corpus, before the first run.
 purpose: Phase 1a retrieval smoke check (plumbing; not an evaluation)
-authored_by: developer (Claude Code), 2026-10-12
+authored_by: Ravin Elango (owner); drafted by Claude Code, not human-reviewed, 2026-10-12
 reviewed_by_human: false
 top_k: 5
 # Minimum share of queries of each kind whose expectation appears in the top k.
