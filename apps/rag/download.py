@@ -6,21 +6,39 @@ tests can supply responses without any network access.
 
 from __future__ import annotations
 
+import gzip
 import urllib.request
 from collections.abc import Callable
 
 from apps.rag.errors import RagError
 
-USER_AGENT = "ai-qa-eval (https://github.com/ravinelango/ai-qa-eval)"
+# The "Mozilla/5.0 (compatible; ...)" form is the usual crawler format; fda.gov refuses
+# user agents without it. It still names this tool and links the repo.
+USER_AGENT = "Mozilla/5.0 (compatible; ai-qa-eval/0.1; +https://github.com/ravinelango/ai-qa-eval)"
 
 Fetcher = Callable[[str], bytes]
 
 
 def https_fetch(url: str, *, timeout_s: float = 120.0) -> bytes:
-    """GET `url` (HTTPS only; redirects are followed) and return the body."""
+    """GET `url` (HTTPS only; redirects are followed) and return the decoded body.
+
+    Compression is requested because some endpoints (the eCFR API) refuse
+    uncompressed responses.
+    """
     if not url.startswith("https://"):
         raise RagError(f"refusing to fetch a non-HTTPS URL: {url}")
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})  # noqa: S310
+    headers = {"User-Agent": USER_AGENT, "Accept-Encoding": "gzip"}
+    request = urllib.request.Request(url, headers=headers)  # noqa: S310
     with urllib.request.urlopen(request, timeout=timeout_s) as response:  # noqa: S310
         body: bytes = response.read()
-    return body
+        encoding = response.headers.get("Content-Encoding")
+    return decode_body(body, encoding)
+
+
+def decode_body(body: bytes, content_encoding: str | None) -> bytes:
+    encoding = (content_encoding or "identity").strip().lower()
+    if encoding == "gzip":
+        return gzip.decompress(body)
+    if encoding == "identity":
+        return body
+    raise RagError(f"unsupported Content-Encoding {content_encoding!r}")

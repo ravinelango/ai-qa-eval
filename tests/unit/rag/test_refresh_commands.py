@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 from pathlib import Path
@@ -14,7 +15,7 @@ from apps.rag import model_fetch
 from apps.rag.config import EmbeddingSettings, RagConfig
 from apps.rag.corpus import load_sources
 from apps.rag.corpus_fetch import ECFR_API, refresh
-from apps.rag.download import https_fetch
+from apps.rag.download import decode_body, https_fetch
 from apps.rag.errors import CorpusError, EmbedderError, RagError
 from tests.rag_helpers import ECFR_DOC, GUIDANCE_DOC, SYNTHETIC_ECFR, today
 
@@ -133,6 +134,13 @@ def test_a_failed_refresh_changes_nothing(tmp_path: Path) -> None:
 def test_downloads_are_https_only() -> None:
     with pytest.raises(RagError, match="non-HTTPS"):
         https_fetch("http://www.fda.gov/media/1/download")
+
+
+def test_compressed_responses_are_decoded() -> None:
+    assert decode_body(gzip.compress(b"<xml/>"), "gzip") == b"<xml/>"
+    assert decode_body(b"%PDF-1.7", None) == b"%PDF-1.7"
+    with pytest.raises(RagError, match="unsupported Content-Encoding"):
+        decode_body(b"x", "br")
 
 
 def _settings(tmp_path: Path, **pins: str | None) -> EmbeddingSettings:
