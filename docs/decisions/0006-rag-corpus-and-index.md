@@ -1,13 +1,18 @@
 # 0006 — RAG corpus, chunking, index and assistant
 
 **Status:** accepted (Phase 1a scope approved by the repo owner, 2026-10-12, with six
-clarifications). Code and offline tests are in place. Downloading the corpus and the
-embedding model is blocked by the build environment's network policy.
+clarifications). The corpus is downloaded and frozen, the model is pinned and the
+chunk manifest is built. The ONNX model file itself cannot be downloaded yet (its
+download host is refused by the build environment's network policy), so the index and
+the retrieval smoke check have not been run.
 
 ## Corpus
-- **Sources:** 21 CFR Part 11 from the eCFR, plus about three final FDA guidance
-  documents (Part 11 scope and application, data integrity, computer software
-  assurance). Drafts are excluded (`status: final` is required).
+- **Sources:** 21 CFR Part 11 from the eCFR (as of 2026-10-08), plus three final FDA
+  guidance documents: Part 11 Scope and Application (August 2003), Data Integrity and
+  Compliance With Drug CGMP Q&A (December 2018) and Computer Software Assurance for
+  Production and Quality Management System Software (February 3, 2026). Drafts are
+  excluded (`status: final` is required). All are U.S. Government works; FDA's website
+  policy states its content is in the public domain.
 - **Manifest:** `data/corpus/sources.yaml` lists each document's title, kind
   (regulation or guidance), issuer, applicable domain, version label and date, eCFR
   reference with its as-of date and latest amendment, official source URL, retrieval
@@ -24,11 +29,16 @@ embedding model is blocked by the build environment's network policy.
   `§11.10(e)`. Introductory text becomes `§11.10 (introductory text)`. A section with
   no paragraph markers is one unit. Nesting is inferred from the marker sequence, so
   `(i)` after `(h)` is a letter and `(i)` after `(1)` is a roman numeral.
-- **Guidance PDF:** one unit per section, with boundaries taken from the PDF outline.
-  Page furniture is removed, and each block records its page.
-- **Failure:** unknown XML elements, out-of-sequence markers, a missing outline and
-  outline headings that are not in the text all stop the parse. Nothing is guessed
-  or dropped silently.
+- **Guidance PDF:** one unit per section. Headings come from the document's own
+  table of contents (two of the three PDFs have no outline, and the third's outline
+  is incomplete). Nesting follows the numbering (I. > A. > 1. > a., plus "(1)",
+  "Appendix A", "Example 1:"), and each heading must match whole lines of the body,
+  in order. Running line numbers (the 2003 guidance) are checked in sequence and
+  removed. The banner, page numbers and TOC pages are removed. Footnotes are kept in
+  reading order. Blocks are paragraphs within a page, so each chunk records its pages.
+- **Failure:** unknown XML elements, out-of-sequence markers, TOC entries without a
+  number or out of sequence, headings not found in the text and missing line numbers
+  all stop the parse. Nothing is guessed or dropped silently.
 
 ## Chunking
 - **Embedded text:** the heading path, the label and the text, one per line.
@@ -88,11 +98,12 @@ Phase 1a makes no API calls. The generator alias (`sonnet`) is refused without
 `--allow-paid`. No paid run is approved, including the optional live smoke.
 
 ## Open items
-- **Network access:** `www.ecfr.gov`, `www.fda.gov` and `huggingface.co` (and the
-  CDN host it redirects downloads to) must be allowed before the corpus, pins,
-  manifest and smoke result can exist.
-- **Committing `tokenizer.json`:** about 0.7 MB, MIT/Apache licensed. Committing it
-  would let CI check the committed manifest; otherwise that test skips in CI. It is
-  not model weights.
-- **pre-commit size limit:** the 1 MB limit in pre-commit would be raised for
-  `data/corpus/` only, if a source file exceeds it.
+- **Model download:** Hugging Face serves `onnx/model.onnx` from `us.aws.cdn.hf.co`,
+  which the build environment's network policy refuses. The file is pinned by the
+  SHA-256 in the repo's LFS metadata; `make model-fetch` verifies the download against
+  it. Until it is allowed, there is no index and no smoke-check result.
+- **Committing `tokenizer.json`:** 711 KB, MIT license. Committing it would let CI
+  check the committed chunk manifest; without it that test skips in CI. It is not
+  model weights.
+- **pre-commit size limit:** not needed. The largest source file is 752 KB, under
+  the 1 MB limit.
