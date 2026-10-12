@@ -1,0 +1,73 @@
+# Single source of truth for model IDs, provider settings and pricing.
+# Code refers to models only by alias (the keys under `models`).
+#
+# Pricing: USD per million tokens, copied from
+#   https://platform.claude.com/docs/en/about-claude/pricing
+# Re-check and update `pricing_checked` whenever prices are edited.
+pricing_checked: 2026-10-12
+pricing_source: https://platform.claude.com/docs/en/about-claude/pricing
+
+providers:
+  anthropic:
+    # Applies per attempt. The SDK's own retries are disabled; our wrapper retries
+    # so every attempt passes through the budget guard (docs/decisions/0004).
+    timeout_s: 120
+    max_retries: 2
+    backoff_initial_s: 2.0
+    backoff_max_s: 30.0
+  fake:
+    timeout_s: 1
+    max_retries: 2
+    backoff_initial_s: 0.0
+    backoff_max_s: 0.0
+
+models:
+  opus:
+    provider: anthropic
+    model_id: claude-opus-5-5
+    # Current models reject sampling parameters; effort is pinned instead.
+    supports_temperature: false
+    effort: medium
+    pricing:
+      input: 4.00
+      output: 20.00
+      cache_write_5m: 5.00
+      cache_read: 0.20
+  sonnet:
+    provider: anthropic
+    model_id: claude-sonnet-5-5
+    supports_temperature: false
+    effort: high
+    pricing:
+      input: 2.00
+      output: 10.00
+      cache_write_5m: 2.50
+      cache_read: 0.10
+  haiku:
+    provider: anthropic
+    model_id: claude-haiku-5-5
+    supports_temperature: false
+    effort: medium
+    pricing:
+      input: 0.10
+      output: 0.50
+      cache_write_5m: 0.125
+      cache_read: 0.01
+      # Prompts over the threshold (all input tokens incl. cache reads/writes)
+      # are billed entirely at these rates.
+      long_context:
+        threshold_input_tokens: 100000
+        input: 0.50
+        output: 2.50
+        cache_write_5m: 0.625
+        cache_read: 0.05
+  fake:
+    provider: fake
+    model_id: fake-scripted-v1
+    supports_temperature: true
+    effort: null
+    pricing:
+      input: 0.0
+      output: 0.0
+      cache_write_5m: 0.0
+      cache_read: 0.0
