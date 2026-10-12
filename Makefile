@@ -57,11 +57,25 @@ test-live: ## PAID: one real API call (needs ANTHROPIC_API_KEY)
 clean: ## Remove caches, build output and local demo runs
 	rm -rf .pytest_cache .mypy_cache .ruff_cache dist runs/demo
 
+# --- Phase 1a: RAG corpus, index and assistant (no API calls) --------------------
+
+.PHONY: corpus-refresh model-fetch ingest ingest-check retrieval-smoke test-model
+corpus-refresh: ## NETWORK: re-download corpus sources into data/corpus (review the diff)
+	$(UV) run python -m apps.rag.corpus_fetch
+model-fetch: ## NETWORK: download the pinned embedding model into .cache/ (never committed)
+	$(UV) run python -m apps.rag.model_fetch
+ingest: ## Frozen corpus -> chunk manifest -> embeddings -> local Chroma (no network)
+	$(UV) run python -m apps.rag.ingest
+ingest-check: ## Check the saved chunk manifest is reproduced byte for byte
+	$(UV) run python -m apps.rag.ingest --check
+retrieval-smoke: ## Developer-authored retrieval check on the real index (not an eval)
+	$(UV) run python -m apps.rag.smoke
+test-model: ## Tests that load the pinned local embedding model (no network)
+	$(UV) run pytest tests/model --run-model
+
 # --- Later phases --------------------------------------------------------------
 
-.PHONY: ingest label eval eval-smoke judge-validate redteam experiment dashboard
-ingest: ## Parse, chunk, embed the corpus into Chroma
-	$(call not_yet,Phase 1a)
+.PHONY: label eval eval-smoke judge-validate redteam experiment dashboard
 label: ## Labeling CLI for the golden dataset
 	$(call not_yet,Phase 1b)
 eval: ## Full golden-dataset eval run
