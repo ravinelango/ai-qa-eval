@@ -16,6 +16,10 @@
   elapsed time, attempts, additional estimated API cost (0 on a hit), uncertain cost.
   Reports must use `generation` for quality/cost-per-request comparisons and must not
   present cached elapsed times as model latency.
+- **What caching does and does not give.** A cache hit replays a recorded output exactly,
+  so reruns of the same inputs are repeatable and cheap. It says nothing about how the
+  model behaves on a fresh call. Fresh model behavior, judge variance and latency must be
+  measured uncached.
 - **Explicit bypass.** `CachePolicy` is `use`, `bypass` or `refresh`. Judge-variance
   experiments and live latency measurements must run with `bypass`; the policy is recorded
   in every run file manifest.

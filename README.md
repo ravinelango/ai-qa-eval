@@ -84,15 +84,22 @@ own PR, with its tests and live mode preserved.
   every attempt through the budget guard.
 - **Budget guard** ([0004](docs/decisions/0004-paid-execution-and-budgets.md)):
   - Plan estimates count generation, judging, repeats and retries.
-  - Interactive runs over 50 attempts need approval. Unattended runs need configured
-    limits.
-  - Each attempt reserves budget before it is dispatched. Timeouts are recorded as
+  - A run is interactive only in a terminal with no CI markers. Anything else is
+    unattended: it never prompts and needs an approved budget profile.
+  - Interactive runs over 50 attempts need approval.
+  - Each attempt reserves budget before it is dispatched, and every attempt ends
+    settled. Timeouts, malformed responses and unexpected exceptions are recorded as
     uncertain charges.
 - **Cache semantics** ([0003](docs/decisions/0003-response-cache.md)): the key function
-  and policy are fixed now. The disk cache comes in Phase 1e.
-- **Tracing** ([0005](docs/decisions/0005-tracing-and-evidence.md)): the backends are
-  none, local JSONL and Langfuse. Run files are the primary evidence, and trace IDs
-  link to them.
+  and policy are fixed now; the disk cache comes in Phase 1e. Caching gives repeatable
+  replay of recorded outputs. Fresh model behavior and judge variance still need
+  uncached measurements.
+- **Evidence and tracing** ([0005](docs/decisions/0005-tracing-and-evidence.md)): run
+  files stand alone. They hold resolved settings, requests, responses or errors, and
+  every failed attempt, with any tracer or none. Tracing backends are none, local
+  JSONL and Langfuse; trace IDs are supplementary links.
+- **Redaction:** entry points install logging that masks secrets in messages and full
+  tracebacks. Run and trace files mask credential-shaped strings.
 - **CI** (`.github/workflows/ci.yml`): lint, format, types, tests, the demo and a wheel
   package check. It uses no secrets.
 
@@ -100,7 +107,9 @@ own PR, with its tests and live mode preserved.
 - **Unit tests** use the scripted `FakeBackend`.
 - **Offline integration tests** run the real `anthropic` SDK against an in-process mock
   HTTP transport, and the real Langfuse SDK against an in-memory OpenTelemetry exporter.
-- **No network:** the whole default suite runs with sockets disabled.
+- **No network:** the whole default suite runs with sockets disabled. Integration tests
+  also run under a hostile SOCKS proxy environment, so they cannot depend on host proxy
+  settings.
 - **Live test:** `tests/live/` makes one paid call. It runs only with `make test-live`.
 
 **Not yet verified live**
@@ -115,3 +124,12 @@ own PR, with its tests and live mode preserved.
 - The input-token upper bound is a byte-length heuristic. It deliberately over-reserves.
 - The "no charge on error status" assumption ([0002](docs/decisions/0002-provider-contract.md))
   has not been confirmed against an invoice.
+- Pattern-based redaction only catches configured secrets and Anthropic/Langfuse
+  key shapes.
+
+## Decisions recorded for Phase 1
+
+- **Generator:** Sonnet (`sonnet` alias), provisional.
+- **Judge:** provisional until validated against the owner's human labels (Phase 1d).
+- **Paid CI budget profiles** stay unset until the owner approves concrete limits.
+- **Live check** (`make test-live`) is deferred until the Phase 0 fixes are reviewed.
