@@ -142,6 +142,22 @@ class GenerationStats(_Frozen):
     generated_at: datetime
 
 
+class FailedAttempt(_Frozen):
+    """One attempt that produced no response. Saved in run files, so the attempt
+    history is readable without traces."""
+
+    attempt: int = Field(ge=1)
+    error_type: str
+    message: str
+    status_code: int | None = None
+    request_id: str | None = None
+    retryable: bool
+    # "uncertain": the attempt may have been billed (timeout, dropped connection,
+    # malformed 200, unexpected exception); its reservation is kept.
+    charge: Literal["none", "uncertain"]
+    uncertain_cost_usd: float = Field(default=0.0, ge=0)
+
+
 class ExecutionStats(_Frozen):
     """Facts about this execution of the call (cache hit or fresh request)."""
 
@@ -154,6 +170,8 @@ class ExecutionStats(_Frozen):
     # Worst-case estimate for attempts that may have been billed without reporting
     # usage (timeouts, dropped connections). Kept separate, never treated as free.
     uncertain_cost_usd: float = Field(default=0.0, ge=0)
+    # Attempts before the successful one, in order. Empty on first-try success.
+    failed_attempts: tuple[FailedAttempt, ...] = ()
 
 
 class CompletionResponse(_Frozen):

@@ -28,6 +28,7 @@ from apps.core.errors import (
     ProviderServerError,
     ProviderTimeoutError,
 )
+from apps.core.evidence import budget_record
 from apps.core.models import ModelRegistry
 from apps.core.providers.anthropic import AnthropicBackend
 from apps.core.types import (
@@ -349,3 +350,46 @@ def test_client_retries_overload_then_succeeds_within_budget(registry: ModelRegi
     assert snap.attempts_dispatched == 2
     assert snap.settled_cost_usd == pytest.approx(response.generation.estimated_cost_usd)
     assert snap.outstanding_reservations_usd == pytest.approx(0.0)
+
+
+# --- regression: review finding 3 (malformed 200 responses) ---------------------------
+
+
+def _negative_usage_body() -> dict[str, Any]:
+    return _message(
+        [{"type": "text", "text": "ok"}], usage={"input_tokens": 10, "output_tokens": -1}
+    )
+
+
+def test_malformed_200_becomes_provider_response_error(registry: ModelRegistry) -> None:
+    backend, recorder = _backend(_ok(_negative_usage_body()))
+    with pytest.raises(ProviderResponseError) as info:
+        backend.send(registry.resolve("opus"), _request())
+    assert info.value.charge == "uncertain"
+    assert info.value.request_id == "req_fixture_1"
+    assert "malformed response body" in str(info.value)
+    assert len(recorder.requests) == 1
+
+
+def test_malformed_200_is_fully_accounted_through_client(registry: ModelRegistry) -> None:
+    backend, _ = _backend(_ok(_negative_usage_body()))
+    guard = BudgetGuard(BudgetLimits(max_request_attempts=3, max_estimated_cost_usd=1.0))
+    client = ModelClient(
+        registry=registry, backends={"anthropic": backend}, allow_paid=True, guard=guard
+    )
+    with pytest.raises(ProviderResponseError) as info:
+        client.complete(_request())
+
+    snap = guard.snapshot()
+    assert snap.attempts_dispatched == 1  # not retried
+    assert snap.outstanding_reservations_usd == pytest.approx(0.0)
+    assert snap.uncertain_cost_usd > 0  # possibly billed, kept as uncertain
+    (attempt,) = info.value.failed_attempts
+    assert attempt.error_type == "ProviderResponseError"
+    assert attempt.charge == "uncertain"
+    assert attempt.uncertain_cost_usd == pytest.approx(snap.uncertain_cost_usd)
+
+    record = budget_record(snap)
+    assert record is not None
+    assert record["outstanding_reservations_usd"] == pytest.approx(0.0)
+    assert record["committed_cost_usd"] == pytest.approx(snap.uncertain_cost_usd)

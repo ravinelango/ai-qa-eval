@@ -6,6 +6,8 @@ paid provider, so budget and opt-in rules are exercised without any network.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from apps.core.budget import BudgetGuard, BudgetLimits
@@ -20,7 +22,9 @@ from apps.core.errors import (
     ProviderServerError,
     ProviderTimeoutError,
 )
-from apps.core.models import ModelRegistry
+from apps.core.evidence import error_record
+from apps.core.models import ModelRegistry, ModelSpec
+from apps.core.providers.base import AttemptResult
 from apps.core.providers.fake import FakeBackend, ScriptedReply, Step
 from apps.core.tracing.local import RecordingTracer
 from apps.core.types import CompletionRequest, Message, ToolCall, Usage
@@ -207,7 +211,7 @@ def test_failure_is_traced_as_error_with_every_attempt(registry: ModelRegistry) 
     assert record.level == "ERROR"
     assert record.status_message is not None
     assert "ProviderBadRequestError" in record.status_message
-    assert [e["error_type"] for e in record.metadata["attempt_errors"]] == [
+    assert [e["error_type"] for e in record.metadata["failed_attempts"]] == [
         "ProviderRateLimitError",
         "ProviderBadRequestError",
     ]
@@ -225,3 +229,58 @@ def test_backoff_is_exponential_and_capped(registry: ModelRegistry) -> None:
     assert delays[1] == settings.backoff_initial_s * 2
     assert max(delays) == settings.backoff_max_s
     assert backoff_delay(settings, 1, 1_000.0) == 60.0
+
+
+# --- regression: review finding 3 (every dispatched attempt is settled) ---------------
+
+
+class _ExplodingBackend:
+    """A backend whose send() fails with something that is not a ProviderError."""
+
+    name = "anthropic"
+
+    def normalized_payload(self, spec: ModelSpec, request: CompletionRequest) -> dict[str, Any]:
+        return {}
+
+    def send(self, spec: ModelSpec, request: CompletionRequest) -> AttemptResult:
+        raise RuntimeError("unexpected parser bug")
+
+
+def test_unexpected_exception_settles_reservation_as_uncertain(registry: ModelRegistry) -> None:
+    guard = BudgetGuard(DEFAULT_LIMITS)
+    tracer = RecordingTracer()
+    client = ModelClient(
+        registry=registry,
+        backends={"anthropic": _ExplodingBackend()},
+        tracer=tracer,
+        allow_paid=True,
+        guard=guard,
+    )
+    with pytest.raises(RuntimeError, match="unexpected parser bug") as info:
+        client.complete(simple_request("opus"))
+    snap = guard.snapshot()
+    assert snap.outstanding_reservations_usd == pytest.approx(0.0)
+    assert snap.uncertain_cost_usd > 0
+    (record,) = tracer.records
+    assert record.metadata["failed_attempts"][0]["error_type"] == "RuntimeError"
+    assert error_record(info.value)["failed_attempts"][0]["charge"] == "uncertain"
+    assert record.metadata["failed_attempts"][0]["charge"] == "uncertain"
+
+
+def test_budget_refusal_mid_retry_keeps_attempt_history(registry: ModelRegistry) -> None:
+    server_error = ProviderServerError("500", provider="anthropic", status_code=500)
+    client, _, _, _ = _paid_client(registry, [server_error, OK], limits=BudgetLimits(1, 10.0))
+    with pytest.raises(BudgetExceededError) as info:
+        client.complete(simple_request("opus"))
+    assert [a.error_type for a in info.value.failed_attempts] == ["ProviderServerError"]
+
+
+def test_success_after_retry_records_failed_attempts_in_response(registry: ModelRegistry) -> None:
+    rate_limited = ProviderRateLimitError("429", provider="anthropic", status_code=429)
+    client, _, _, _ = _paid_client(registry, [rate_limited, OK])
+    response = client.complete(simple_request("opus"))
+    (failed,) = response.execution.failed_attempts
+    assert failed.attempt == 1
+    assert failed.error_type == "ProviderRateLimitError"
+    assert failed.status_code == 429
+    assert failed.charge == "none"

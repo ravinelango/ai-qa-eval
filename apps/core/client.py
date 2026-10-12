@@ -12,6 +12,7 @@ Per call it:
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
@@ -33,10 +34,13 @@ from apps.core.types import (
     CompletionRequest,
     CompletionResponse,
     ExecutionStats,
+    FailedAttempt,
     GenerationStats,
 )
 
 MAX_BACKOFF_CAP_S = 60.0
+
+logger = logging.getLogger(__name__)
 
 
 class Completer(Protocol):
@@ -98,12 +102,19 @@ class ModelClient:
             },
             metadata={"model_alias": spec.alias, "provider": spec.provider},
         ) as observation:
-            attempt_errors: list[dict[str, object]] = []
+            history: list[FailedAttempt] = []
             try:
-                response = self._run_attempts(spec, backend, settings, request, attempt_errors)
+                response = self._run_attempts(spec, backend, settings, request, history)
+            except BaseException as exc:
+                # Attach the attempt history to whatever escapes (our errors declare
+                # the attribute; others get it set dynamically) for saved evidence.
+                setattr(exc, "failed_attempts", tuple(history))  # noqa: B010
+                raise
             finally:
-                if attempt_errors:
-                    observation.update(metadata={"attempt_errors": attempt_errors})
+                if history:
+                    observation.update(
+                        metadata={"failed_attempts": [a.model_dump() for a in history]}
+                    )
             observation.update(
                 output={
                     "content": [b.model_dump(mode="json") for b in response.content],
@@ -138,8 +149,9 @@ class ModelClient:
         backend: ProviderBackend,
         settings: ProviderSettings,
         request: CompletionRequest,
-        attempt_errors: list[dict[str, object]],
+        history: list[FailedAttempt],
     ) -> CompletionResponse:
+        """Every dispatched attempt ends settled: success, error, or unknown outcome."""
         started = self._clock()
         attempts = 0
         uncertain_usd = 0.0
@@ -149,19 +161,45 @@ class ModelClient:
             try:
                 result = backend.send(spec, request)
             except ProviderError as err:
-                if reservation is not None:
-                    uncertain_usd += reservation.settle_error(err)
+                uncertain = reservation.settle_error(err) if reservation is not None else 0.0
+                uncertain_usd += uncertain
                 err.attempts = attempts
-                attempt_errors.append(err.describe())
-                if not err.retryable or attempts > settings.max_retries:
+                history.append(err.to_failed_attempt(attempts, uncertain))
+                will_retry = err.retryable and attempts <= settings.max_retries
+                logger.warning(
+                    "model call attempt %d failed (%s, %s): %s",
+                    attempts,
+                    type(err).__name__,
+                    "retrying" if will_retry else "giving up",
+                    err,
+                )
+                if not will_retry:
                     raise
                 self._sleep(backoff_delay(settings, attempts, err.retry_after_s))
                 continue
+            except BaseException as exc:
+                # Not a provider outcome we understand (a bug, an interrupt). The
+                # request may have been sent, so its reservation stays as uncertain.
+                uncertain = reservation.settle_unknown() if reservation is not None else 0.0
+                history.append(
+                    FailedAttempt(
+                        attempt=attempts,
+                        error_type=type(exc).__name__,
+                        message=str(exc),
+                        retryable=False,
+                        charge="uncertain",
+                        uncertain_cost_usd=uncertain,
+                    )
+                )
+                logger.error("model call attempt %d raised %s", attempts, type(exc).__name__)
+                raise
             if reservation is not None:
                 cost = reservation.settle_success(result.usage)
             else:
                 cost = cost_of_usage(spec.pricing, result.usage) if spec.pricing else 0.0
-            return self._build_response(spec, result, cost, started, attempts, uncertain_usd)
+            return self._build_response(
+                spec, result, cost, started, attempts, uncertain_usd, tuple(history)
+            )
 
     def _build_response(
         self,
@@ -171,6 +209,7 @@ class ModelClient:
         started: float,
         attempts: int,
         uncertain_usd: float,
+        failed_attempts: tuple[FailedAttempt, ...],
     ) -> CompletionResponse:
         return CompletionResponse(
             content=result.content,
@@ -195,5 +234,6 @@ class ModelClient:
                 attempts=attempts,
                 estimated_api_cost_usd=cost,
                 uncertain_cost_usd=uncertain_usd,
+                failed_attempts=failed_attempts,
             ),
         )

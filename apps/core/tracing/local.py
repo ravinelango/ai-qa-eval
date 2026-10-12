@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from apps.core.redact import redact
 from apps.core.tracing.base import (
     ObservationKind,
     ObservationRecord,
@@ -194,8 +195,9 @@ class RecordingTracer(Tracer):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as fh:
             for record in self.records[self._flushed_records :]:
-                fh.write(json.dumps({"type": "observation", **asdict(record)}, default=str) + "\n")
+                line = json.dumps({"type": "observation", **asdict(record)}, default=str)
+                fh.write(redact(line) + "\n")
             for score in self.scores[self._flushed_scores :]:
-                fh.write(json.dumps({"type": "score", **asdict(score)}, default=str) + "\n")
+                fh.write(redact(json.dumps({"type": "score", **asdict(score)}, default=str)) + "\n")
         self._flushed_records = len(self.records)
         self._flushed_scores = len(self.scores)

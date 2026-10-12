@@ -116,7 +116,19 @@ class AnthropicBackend:
         except anthropic.AnthropicError as exc:
             raise _translate_error(exc) from exc
         latency_ms = (self._clock() - started) * 1000.0
-        return _parse_message(message, latency_ms)
+        try:
+            return _parse_message(message, latency_ms)
+        except ProviderError:
+            raise
+        except (ValueError, TypeError, AttributeError, KeyError) as exc:
+            # A 200 whose body breaks our contract (e.g. negative token counts). The
+            # request was processed, so the charge is uncertain, not zero.
+            # (pydantic's ValidationError is a ValueError.)
+            raise ProviderResponseError(
+                f"malformed response body: {type(exc).__name__}: {exc}",
+                provider=PROVIDER,
+                request_id=getattr(message, "_request_id", None),
+            ) from exc
 
 
 def _block_to_api(block: ContentBlock) -> dict[str, Any]:

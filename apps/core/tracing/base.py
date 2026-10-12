@@ -18,6 +18,7 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
+from apps.core.redact import redact
 from apps.core.types import Usage
 
 ObservationKind = Literal[
@@ -107,7 +108,7 @@ def new_observation_id() -> str:
 
 
 def error_message(exc: BaseException) -> str:
-    return f"{type(exc).__name__}: {exc}"
+    return redact(f"{type(exc).__name__}: {exc}")
 
 
 @dataclass

@@ -269,6 +269,11 @@ class Reservation:
         self.guard._settle(self, settled=0.0, uncertain=uncertain)
         return uncertain
 
+    def settle_unknown(self) -> float:
+        """For an attempt that ended in an unexpected exception: keep it as uncertain."""
+        self.guard._settle(self, settled=0.0, uncertain=self.reserved_usd)
+        return self.reserved_usd
+
 
 class BudgetGuard:
     def __init__(self, limits: BudgetLimits) -> None:

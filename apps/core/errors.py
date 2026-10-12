@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Literal
 
+from apps.core.types import FailedAttempt
+
 # "none": the provider answered with an error status, so no generation happened.
 # "uncertain": we lost the connection or timed out after sending; the provider may
 #              have processed (and billed) the request.
@@ -16,7 +18,13 @@ ChargeStatus = Literal["none", "uncertain"]
 
 
 class QAEvalError(Exception):
-    """Base class for errors raised by this repo."""
+    """Base class for errors raised by this repo.
+
+    When a model call fails, ModelClient attaches the attempts made before the
+    failure (to any escaping exception), so saved evidence shows the full history.
+    """
+
+    failed_attempts: tuple[FailedAttempt, ...] = ()
 
 
 class ConfigurationError(QAEvalError):
@@ -75,6 +83,18 @@ class ProviderError(QAEvalError):
             "charge": self.charge,
             "attempts": self.attempts,
         }
+
+    def to_failed_attempt(self, attempt: int, uncertain_cost_usd: float) -> FailedAttempt:
+        return FailedAttempt(
+            attempt=attempt,
+            error_type=type(self).__name__,
+            message=str(self),
+            status_code=self.status_code,
+            request_id=self.request_id,
+            retryable=self.retryable,
+            charge=self.charge,
+            uncertain_cost_usd=uncertain_cost_usd,
+        )
 
 
 class ProviderTimeoutError(ProviderError):
