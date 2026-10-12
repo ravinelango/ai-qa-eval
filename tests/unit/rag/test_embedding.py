@@ -52,6 +52,7 @@ def _pinned(tmp_path: Path, **files: bytes) -> EmbeddingSettings:
     data: dict[str, Any] = shipped.model_dump(mode="json")
     data["revision"] = REVISION
     data["local_dir"] = str(tmp_path)
+    data["tokenizer"]["local_dir"] = None
     for which, content in files.items():
         data[which]["sha256"] = hashlib.sha256(content).hexdigest()
     return EmbeddingSettings.model_validate(data)

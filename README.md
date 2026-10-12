@@ -152,7 +152,8 @@ make retrieval-smoke  # developer-authored retrieval check on the real index
   citations, retrieved chunks with scores, the prompt version and hash, and the trace
   ID. Run files (schema 3) include fingerprints and retrieved text.
 - **Chunk manifest:** 149 chunks (max 509 of 512 tokens), committed, and reproduced
-  byte for byte by `make ingest-check`.
+  byte for byte by `make ingest-check` and by a CI test that uses the committed,
+  pinned tokenizer (`data/models/bge-small-en-v1.5/`, MIT, with its source recorded).
 - **Retrieval smoke check:** 28 developer-authored queries (12 section lookups, 16
   paraphrases). Top-k 5 and a ≥ 0.8 hit rate per query kind were fixed before any
   run. It is not an evaluation.

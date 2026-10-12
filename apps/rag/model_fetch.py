@@ -50,11 +50,12 @@ class FetchedFile:
 
 
 def download_files(
-    repo: str, revision: str, files: list[PinnedFile], dest: Path, fetch: Fetcher
+    repo: str, revision: str, files: list[tuple[PinnedFile, Path]], fetch: Fetcher
 ) -> list[FetchedFile]:
-    """Download each file at `revision`; install only those matching a set pin."""
+    """Download each file at `revision` to its target path; install only those matching
+    a set pin."""
     fetched: list[FetchedFile] = []
-    for pin in files:
+    for pin, target in files:
         data = fetch(resolve_url(repo, revision, pin.path))
         digest = hashlib.sha256(data).hexdigest()
         if pin.sha256 is not None and digest != pin.sha256:
@@ -62,7 +63,6 @@ def download_files(
                 f"{repo}@{revision}/{pin.path}: downloaded SHA-256 {digest} does not match "
                 f"the pin {pin.sha256}; nothing was installed for this file"
             )
-        target = dest / pin.path
         target.parent.mkdir(parents=True, exist_ok=True)
         tmp = target.with_suffix(target.suffix + ".part")
         tmp.write_bytes(data)
@@ -78,12 +78,9 @@ def fetch_pinned(settings: EmbeddingSettings, root: Path, fetch: Fetcher) -> lis
             "run with --pin to look them up"
         )
     # The tokenizer first: it alone is enough to build the chunk manifest.
+    pins = [settings.tokenizer, settings.model]
     return download_files(
-        settings.repo,
-        settings.revision,
-        [settings.tokenizer, settings.model],
-        settings.local_path(root),
-        fetch,
+        settings.repo, settings.revision, [(p, settings.file_path(p, root)) for p in pins], fetch
     )
 
 
@@ -91,7 +88,8 @@ def propose_pins(settings: EmbeddingSettings, fetch: Fetcher) -> tuple[str, list
     revision = current_revision(settings.repo, fetch)
     unpinned = [PinnedFile(path=p.path) for p in (settings.model, settings.tokenizer)]
     with tempfile.TemporaryDirectory() as tmp:
-        files = download_files(settings.repo, revision, unpinned, Path(tmp), fetch)
+        targets = [(p, Path(tmp) / p.path) for p in unpinned]
+        files = download_files(settings.repo, revision, targets, fetch)
     return revision, files
 
 

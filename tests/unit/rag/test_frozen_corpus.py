@@ -1,27 +1,21 @@
-"""Checks on the real frozen corpus (21 CFR Part 11 and FDA guidance).
+"""Checks on the committed corpus, tokenizer and chunk manifest.
 
-They run whenever the documents are in data/corpus/ and skip, saying why, until
-then. The manifest check also needs the pinned tokenizer.
+These never skip: the corpus files and the pinned tokenizer are committed, so a
+missing or altered file fails here, in offline CI as anywhere else.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from apps.rag.config import RagConfig
+from apps.rag.config import RagConfig, file_sha256
 from apps.rag.corpus import load_sources, verify_snapshot
 from apps.rag.embedding import WordPieceCounter
-from apps.rag.errors import EmbedderError
 from apps.rag.ingest import check_manifest, parse_document
 from apps.rag.units import SourceUnit
 
 CONFIG = RagConfig.load()
 SOURCES = load_sources(CONFIG.resolve(CONFIG.corpus.sources))
-HAS_PART_11 = any(d.doc_id == "21cfr11" for d in SOURCES.documents)
-
-pytestmark = pytest.mark.skipif(
-    not SOURCES.documents, reason="no documents in the frozen corpus yet (data/corpus/SOURCES.md)"
-)
 
 
 def test_every_listed_file_matches_its_checksum() -> None:
@@ -30,8 +24,6 @@ def test_every_listed_file_matches_its_checksum() -> None:
 
 @pytest.fixture(scope="module")
 def part11() -> dict[str, SourceUnit]:
-    if not HAS_PART_11:
-        pytest.skip("21 CFR Part 11 is not in the frozen corpus yet")
     document = SOURCES.get("21cfr11")
     data = (CONFIG.resolve(CONFIG.corpus.dir) / document.file).read_bytes()
     return {u.locator: u for u in parse_document(document, data)}
@@ -59,11 +51,21 @@ def test_identification_code_and_password_controls(part11: dict[str, SourceUnit]
         assert unit.heading_path[-1].startswith("§ 11.300 ")
 
 
+def test_committed_tokenizer_matches_its_pin_and_keeps_its_license() -> None:
+    settings = CONFIG.embedding
+    path = settings.file_path(settings.tokenizer, CONFIG.root)
+    assert path.parent.parts[-2:] == ("models", "bge-small-en-v1.5")
+    assert file_sha256(path) == settings.tokenizer.sha256
+    assert (path.parent / "LICENSE").read_text(encoding="utf-8").startswith("MIT License")
+    source = (path.parent / "SOURCE.md").read_text(encoding="utf-8")
+    assert settings.revision is not None
+    assert settings.revision in source
+    assert settings.tokenizer.sha256 in source
+
+
 def test_committed_chunk_manifest_is_reproduced_byte_for_byte() -> None:
-    try:
-        counter = WordPieceCounter.from_settings(CONFIG.embedding, CONFIG.root)
-    except EmbedderError as exc:
-        pytest.skip(f"pinned tokenizer unavailable: {exc}")
+    # A missing or mismatched tokenizer raises here: the check fails, never skips.
+    counter = WordPieceCounter.from_settings(CONFIG.embedding, CONFIG.root)
     assert check_manifest(
         CONFIG, counter, tokenizer_fingerprint=CONFIG.embedding.tokenizer_fingerprint()
     )

@@ -156,7 +156,7 @@ def pinned_path(settings: EmbeddingSettings, root: Path, which: str) -> Path:
             "embedding.model and embedding.tokenizer in config/rag.yaml (make model-fetch)"
         )
     pin = settings.model if which == "model" else settings.tokenizer
-    path = settings.local_path(root) / pin.path
+    path = settings.file_path(pin, root)
     if not path.is_file():
         raise EmbedderError(f"{path} is missing; run make model-fetch")
     actual = file_sha256(path)

@@ -146,6 +146,7 @@ def test_compressed_responses_are_decoded() -> None:
 def _settings(tmp_path: Path, **pins: str | None) -> EmbeddingSettings:
     data: dict[str, Any] = RagConfig.load().embedding.model_dump(mode="json")
     data["local_dir"] = str(tmp_path / "models")
+    data["tokenizer"]["local_dir"] = None
     data["revision"] = pins.get("revision")
     data["model"]["sha256"] = pins.get("model")
     data["tokenizer"]["sha256"] = pins.get("tokenizer")

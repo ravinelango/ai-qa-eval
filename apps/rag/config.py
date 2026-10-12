@@ -52,6 +52,8 @@ class ChunkingSettings(_Strict):
 class PinnedFile(_Strict):
     path: str = Field(min_length=1)
     sha256: str | None = Field(default=None, pattern=SHA256_PATTERN)
+    # Where this file is kept, when not under embedding.local_dir (e.g. a committed copy).
+    local_dir: Path | None = None
 
 
 class EmbeddingSettings(_Strict):
@@ -77,12 +79,20 @@ class EmbeddingSettings(_Strict):
             and self.tokenizer.sha256 is not None
         )
 
-    def local_path(self, root: Path) -> Path:
-        return self.local_dir if self.local_dir.is_absolute() else root / self.local_dir
+    def file_path(self, pin: PinnedFile, root: Path) -> Path:
+        """Where a pinned file is kept on disk."""
+        directory = pin.local_dir or self.local_dir
+        return (directory if directory.is_absolute() else root / directory) / pin.path
 
     def fingerprint(self) -> str:
         """Everything that determines the vectors, except where the files are stored."""
-        return canonical_sha256(self.model_dump(mode="json", exclude={"local_dir", "batch_size"}))
+        exclude: dict[str, Any] = {
+            "local_dir": True,
+            "batch_size": True,
+            "model": {"local_dir"},
+            "tokenizer": {"local_dir"},
+        }
+        return canonical_sha256(self.model_dump(mode="json", exclude=exclude))
 
     def tokenizer_fingerprint(self) -> str:
         """What determines token counts, and therefore chunk boundaries."""
@@ -90,7 +100,7 @@ class EmbeddingSettings(_Strict):
             {
                 "repo": self.repo,
                 "revision": self.revision,
-                "tokenizer": self.tokenizer.model_dump(mode="json"),
+                "tokenizer": self.tokenizer.model_dump(mode="json", exclude={"local_dir"}),
                 "max_tokens": self.max_tokens,
             }
         )

@@ -50,7 +50,8 @@ the retrieval smoke check have not been run.
   error. Nothing is truncated.
 - **IDs:** `<doc_id>/<locator>`, plus `#<part>` when a unit is split.
 - **Manifest:** `data/index/chunk_manifest.json` is committed and byte-identical for
-  identical inputs. `make ingest-check` and a test verify that.
+  identical inputs. `make ingest-check` and a test verify that; the test never skips,
+  so a missing or mismatched tokenizer fails offline CI.
 
 ## Embeddings and index
 - **Model:** bge-small-en-v1.5 through onnxruntime (no PyTorch), with CLS pooling, L2
@@ -58,11 +59,16 @@ the retrieval smoke check have not been run.
 - **Pins:** `config/rag.yaml` pins the repo commit and the SHA-256 of the ONNX file
   and `tokenizer.json`. The embedder refuses to load while a pin is missing or a file
   differs. Weights are downloaded to `.cache/` and never committed.
+- **Tokenizer:** committed in `data/models/bge-small-en-v1.5/` with the upstream MIT
+  license and `SOURCE.md` (revision, URL, SHA-256), so CI can rebuild the manifest
+  offline. It is byte-identical to upstream.
 - **Index:** local Chroma (`data/chroma/`, not committed), cosine distance,
   ef 200. The collection records what it was built from: the embedding fingerprint,
   the chunk-manifest SHA-256 and the corpus fingerprint. The retriever refuses an index
   that does not match. Syncing upserts by chunk ID and deletes IDs no longer in the
-  manifest, so repeated ingestion never duplicates a chunk.
+  manifest, so repeated ingestion never duplicates a chunk. Before accepting an index,
+  the retriever also checks every corpus file against its SHA-256, so an edited file
+  is refused even when `sources.yaml` still describes the original.
 - **Tests:** the default suite never loads the real model. `tests/conftest.py` sets a
   flag that makes the loader raise. Model tests run with `make test-model`.
 
@@ -72,6 +78,11 @@ the retrieval smoke check have not been run.
   call), the answer, the cited chunk IDs as given, the citations that were not
   retrieved, the retrieved chunks with text and scores, the prompt version and
   SHA-256, the model call and the trace ID.
+- **Stopping a run:** a provider error ends only its question (`behavior: error`).
+  A stop for the whole run (budget exhausted, paid calls not allowed, interrupt)
+  attaches the complete record to the exception (`stopped_run: true`: question,
+  retrieval, prompt identity, resolved call settings, every failed attempt), where
+  the run-file writer finds it with `answer_record_of`, and then propagates.
 - **Prompts:** versioned files (`apps/rag/prompts/answer-v1.yaml`). A change makes a
   new file.
 - **What a valid citation means:** it shows the answer points at a retrieved chunk.
@@ -102,8 +113,5 @@ Phase 1a makes no API calls. The generator alias (`sonnet`) is refused without
   which the build environment's network policy refuses. The file is pinned by the
   SHA-256 in the repo's LFS metadata; `make model-fetch` verifies the download against
   it. Until it is allowed, there is no index and no smoke-check result.
-- **Committing `tokenizer.json`:** 711 KB, MIT license. Committing it would let CI
-  check the committed chunk manifest; without it that test skips in CI. It is not
-  model weights.
 - **pre-commit size limit:** not needed. The largest source file is 752 KB, under
   the 1 MB limit.
