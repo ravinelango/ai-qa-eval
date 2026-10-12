@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC TEST FIXTURE. Part 99 does not exist; every sentence below is invented
+     placeholder text. Only the element structure imitates eCFR XML. -->
+<DIV1 N="99" TYPE="TITLE">
+  <HEAD>Title 99—Synthetic Test Title</HEAD>
+  <DIV5 N="99" NODE="99:1.0.1.1.1" TYPE="PART">
+    <HEAD>PART 99—SYNTHETIC RECORDS; SYNTHETIC SIGNATURES</HEAD>
+    <AUTH><HED>Authority:</HED><PSPACE>Synthetic authority citation.</PSPACE></AUTH>
+    <SOURCE><HED>Source:</HED><PSPACE>Synthetic source citation.</PSPACE></SOURCE>
+    <DIV6 N="A" TYPE="SUBPART">
+      <HEAD>Subpart A—General Provisions</HEAD>
+      <DIV8 N="§ 99.1" NODE="99:1.0.1.1.1.1.1.1" TYPE="SECTION">
+        <HEAD>§ 99.1   Scope.</HEAD>
+        <P>(a) Placeholder scope sentence about synthetic widgets.</P>
+        <P>(b) Placeholder sentence saying this part applies to gadget ledgers.</P>
+        <CITA TYPE="N">[Synthetic citation, as amended at Synthetic FR 1]</CITA>
+      </DIV8>
+      <DIV8 N="§ 99.3" TYPE="SECTION">
+        <HEAD>§ 99.3   Definitions.</HEAD>
+        <P>(a) Placeholder lead-in for definitions.</P>
+        <P>(b) The following placeholder terms apply:</P>
+        <P>(1) <I>Widget</I> means a placeholder object.</P>
+        <P>(2) <I>Gadget</I> means another placeholder object.</P>
+      </DIV8>
+    </DIV6>
+    <DIV6 N="B" TYPE="SUBPART">
+      <HEAD>Subpart B—Synthetic Ledgers</HEAD>
+      <DIV8 N="§ 99.10" TYPE="SECTION">
+        <HEAD>§ 99.10   Controls for sealed ledgers.</HEAD>
+        <P>Persons who keep sealed ledgers shall apply placeholder controls, including the following:</P>
+        <P>(a) Placeholder control alpha.</P>
+        <P>(b) Placeholder control bravo.</P>
+        <P>(c) Placeholder control charlie.</P>
+        <P>(d) Placeholder control delta.</P>
+        <P>(e) Use of placeholder change logs that record the operator, the moment, and the earlier value.</P>
+        <P>(f) Placeholder control foxtrot.</P>
+        <P>(g) Placeholder control golf.</P>
+        <P>(h) Placeholder control hotel.</P>
+        <P>(i) Placeholder control india, a letter paragraph that follows (h).</P>
+        <P>(j) Placeholder control juliett.</P>
+        <P>(k) Placeholder control kilo, including:</P>
+        <P>(1) Placeholder sub-control one.</P>
+        <P>(2) Placeholder sub-control two.</P>
+      </DIV8>
+      <DIV8 N="§ 99.30" TYPE="SECTION">
+        <HEAD>§ 99.30   Controls for open ledgers.</HEAD>
+        <P>Placeholder single paragraph about open ledgers with no paragraph markers.</P>
+      </DIV8>
+      <DIV8 N="§ 99.50" TYPE="SECTION">
+        <HEAD>§ 99.50   Seal manifestations.</HEAD>
+        <P>(a) Sealed ledgers shall show the following placeholder items:</P>
+        <P>(1) The placeholder name;</P>
+        <P>(2) The placeholder moment; and</P>
+        <P>(3) The placeholder meaning.</P>
+        <P>(b) Placeholder sentence about display of seal items.</P>
+      </DIV8>
+    </DIV6>
+    <DIV6 N="C" TYPE="SUBPART">
+      <HEAD>Subpart C—Synthetic Seals</HEAD>
+      <DIV8 N="§ 99.200" TYPE="SECTION">
+        <HEAD>§ 99.200   Seal components.</HEAD>
+        <P>(a) Placeholder seals not based on fingerprints shall:</P>
+        <P>(1) Employ two placeholder components such as a code and a phrase.</P>
+        <P>(i) Placeholder rule for one continuous session.</P>
+        <P>(ii) Placeholder rule for separate sessions.</P>
+        <P>(2) Be used only by their placeholder owners.</P>
+        <P>(b)(1) Placeholder paragraph that opens with two markers.</P>
+        <P>(2) Placeholder continuation of paragraph (b).</P>
+        <P>Placeholder flush text that continues paragraph (b)(2).</P>
+        <P>(c) Placeholder closing paragraph.</P>
+      </DIV8>
+      <DIV8 N="§ 99.300" TYPE="SECTION">
+        <HEAD>§ 99.300   Controls for codes and phrases.</HEAD>
+        <P>(a) Placeholder uniqueness rule.</P>
+        <P>(b) Placeholder periodic review rule.</P>
+        <P>(c) Placeholder loss management rule.</P>
+        <P>(d) Placeholder misuse detection rule.</P>
+        <P>(e) Placeholder token testing rule.</P>
+      </DIV8>
+    </DIV6>
+  </DIV5>
+</DIV1>

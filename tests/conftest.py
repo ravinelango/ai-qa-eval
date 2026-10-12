@@ -1,8 +1,12 @@
-"""Shared fixtures and the live-test opt-in.
+"""Shared fixtures and the opt-ins for live and model tests.
 
 Default runs execute unit and offline integration tests with sockets disabled
 (pytest-socket), so the suite cannot reach the network by accident. Live tests
 call a paid API and run only with --run-live; an API key alone never enables them.
+
+The default suite never loads the real embedding model: loading it raises unless a
+test is in tests/model/, which runs only with --run-model (no network; it needs the
+pinned model files from `make model-fetch`).
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ import pytest
 import yaml
 
 from apps.core.models import DEFAULT_MODELS_PATH, ModelRegistry
+from apps.rag import embedding
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -24,16 +29,25 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=False,
         help="run tests marked 'live' (paid API calls; also needs ANTHROPIC_API_KEY)",
     )
+    parser.addoption(
+        "--run-model",
+        action="store_true",
+        default=False,
+        help="run tests marked 'model' (load the pinned local embedding model; no network)",
+    )
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     run_live = config.getoption("--run-live")
+    run_model = config.getoption("--run-model")
     has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
     for item in items:
         parts = Path(str(item.fspath)).parts
-        for marker in ("unit", "integration", "live"):
+        for marker in ("unit", "integration", "live", "model"):
             if marker in parts:
                 item.add_marker(getattr(pytest.mark, marker))
+        if "model" in parts and not run_model:
+            item.add_marker(pytest.mark.skip(reason="model test: pass --run-model to run it"))
         if "live" not in parts:
             continue
         if not run_live:
@@ -42,6 +56,16 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             item.add_marker(pytest.mark.skip(reason="live test: ANTHROPIC_API_KEY is not set"))
         else:
             item.add_marker(pytest.mark.enable_socket)
+
+
+@pytest.fixture(autouse=True)
+def forbid_real_embedding_model(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if request.node.get_closest_marker("model"):
+        monkeypatch.delenv(embedding.FORBID_MODEL_LOAD_ENV, raising=False)
+    else:
+        monkeypatch.setenv(embedding.FORBID_MODEL_LOAD_ENV, "1")
 
 
 @pytest.fixture

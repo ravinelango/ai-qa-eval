@@ -1,0 +1,6 @@
+# Corpus manifest (docs/decisions/0006-rag-corpus-and-index.md). SOURCES.md is
+# rendered from this file. Ingestion reads only the files listed here and refuses
+# any whose SHA-256 differs. `make corpus-refresh` re-downloads from source_url and
+# rewrites the snapshot fields (retrieved, sha256, bytes, eCFR dates).
+schema_version: 1
+documents: []
