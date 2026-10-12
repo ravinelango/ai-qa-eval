@@ -10,7 +10,7 @@ from apps.core.tracing.base import Tracer
 from apps.core.tracing.local import NoopTracer
 from apps.rag.chunking import Chunk, ChunkManifest, read_manifest
 from apps.rag.config import RagConfig
-from apps.rag.corpus import load_sources
+from apps.rag.corpus import load_sources, verify_snapshot
 from apps.rag.embedding import Embedder
 from apps.rag.errors import StaleIndexError
 from apps.rag.index import ChunkIndex, IndexStamp
@@ -101,8 +101,13 @@ class Retriever:
 def check_manifest_is_current(
     manifest: ChunkManifest, config: RagConfig, embedder: Embedder, tokenizer_fingerprint: str
 ) -> None:
-    """Refuse a chunk manifest built from other inputs than the current configuration."""
+    """Refuse a chunk manifest built from other inputs than the current configuration.
+
+    The corpus files themselves are checked against their SHA-256 first, so an edited
+    file is caught even when sources.yaml still describes the original.
+    """
     sources = load_sources(config.resolve(config.corpus.sources))
+    verify_snapshot(sources, config.resolve(config.corpus.dir))
     problems = [
         what
         for what, same in (

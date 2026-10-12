@@ -62,6 +62,14 @@ def test_ingest_refuses_a_corpus_file_that_changed(config: RagConfig) -> None:
         ingest(config, EMBEDDER, tokenizer_fingerprint=EMBEDDER.fingerprint)
 
 
+def test_retriever_refuses_a_corpus_file_changed_after_ingest(config: RagConfig) -> None:
+    ingest(config, EMBEDDER, tokenizer_fingerprint=EMBEDDER.fingerprint)
+    path = config.resolve(config.corpus.dir) / "part99.xml"
+    path.write_bytes(path.read_bytes() + b"\n")
+    with pytest.raises(CorpusError, match="has SHA-256"):
+        build_retriever(config, EMBEDDER, tokenizer_fingerprint=EMBEDDER.fingerprint)
+
+
 def test_retrieval_over_the_ingested_index(config: RagConfig) -> None:
     ingest(config, EMBEDDER, tokenizer_fingerprint=EMBEDDER.fingerprint)
     retriever = build_retriever(config, EMBEDDER, tokenizer_fingerprint=EMBEDDER.fingerprint)
