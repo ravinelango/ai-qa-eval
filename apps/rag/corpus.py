@@ -49,10 +49,16 @@ class EcfrReference(_Strict):
 
 
 class PdfOptions(_Strict):
-    """Per-document parsing options for guidance PDFs."""
+    """How to read one guidance PDF, set after reading the document (1-based pages)."""
 
-    # 1-based pages to leave out entirely (e.g. a table of contents).
+    # The document's table of contents. Section headings are read from it; these
+    # pages are not content.
+    toc_pages: tuple[int, ...] = Field(min_length=1)
+    # Other pages to leave out entirely.
     skip_pages: tuple[int, ...] = ()
+    # First page whose body lines end with running line numbers (legal-style
+    # numbering). From here on the numbers are checked in sequence and removed.
+    line_numbers_from_page: int | None = Field(default=None, ge=1)
 
 
 class SourceDocument(_Strict):
@@ -65,8 +71,9 @@ class SourceDocument(_Strict):
     # Drafts are excluded from the corpus: guidance must be final, and a regulation's
     # text is the codified text.
     status: Literal["final"]
-    # Guidance: the issue date printed on the document. Regulation: see ecfr.
-    version_date: date | None = None
+    # Guidance: the issue date printed on the document, as precise as it is printed
+    # ("2003-08" for "August 2003"). Regulation: see ecfr.
+    version_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}(-\d{2})?$")
     version_label: str = Field(min_length=1)
     format: SourceFormat
     file: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -94,6 +101,8 @@ class SourceDocument(_Strict):
                 raise ValueError(f"{self.doc_id}: guidance needs its official source_url")
             if self.version_date is None:
                 raise ValueError(f"{self.doc_id}: guidance needs the issue date it carries")
+            if self.pdf is None:
+                raise ValueError(f"{self.doc_id}: guidance needs pdf options (toc_pages)")
         return self
 
     @property

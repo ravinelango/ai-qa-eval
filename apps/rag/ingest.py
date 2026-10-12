@@ -1,6 +1,7 @@
 """Build the chunk manifest and the vector index from the frozen corpus.
 
     make ingest                                     (manifest + embeddings + index)
+    uv run python -m apps.rag.ingest --manifest-only  (chunk manifest only)
     uv run python -m apps.rag.ingest --check        (verify the saved manifest only)
 
 Steps: verify every corpus file against its SHA-256 in sources.yaml; parse each
@@ -8,9 +9,9 @@ document into structural units; chunk them to fit the embedding model; write the
 chunk manifest (data/index/chunk_manifest.json, committed); embed every chunk and
 sync the local Chroma index (data/chroma/, not committed).
 
-Nothing is downloaded here. `--check` rebuilds the manifest in memory and compares
-it byte for byte with the saved file; it needs only the pinned tokenizer, not the
-model.
+Nothing is downloaded here. `--manifest-only` writes the chunk manifest and
+`--check` rebuilds it in memory and compares it byte for byte with the saved file;
+both need only the pinned tokenizer, not the model.
 """
 
 from __future__ import annotations
@@ -44,6 +45,8 @@ def parse_document(document: SourceDocument, data: bytes) -> list[SourceUnit]:
         if document.ecfr is None:
             raise SourceParseError(f"{document.doc_id}: no eCFR reference")
         return parse_ecfr_part(data, doc_id=document.doc_id, part=document.ecfr.part)
+    if document.pdf is None:
+        raise SourceParseError(f"{document.doc_id}: no pdf options")
     return parse_guidance(
         read_pdf(data), doc_id=document.doc_id, title=document.title, options=document.pdf
     )
@@ -106,6 +109,17 @@ def ingest(config: RagConfig, embedder: Embedder, *, tokenizer_fingerprint: str)
     )
 
 
+def write_chunk_manifest(
+    config: RagConfig, counter: TokenCounter, *, tokenizer_fingerprint: str
+) -> tuple[ChunkManifest, str]:
+    """Build and save the chunk manifest without embedding anything."""
+    sources = load_sources(config.resolve(config.corpus.sources))
+    manifest = build_chunk_manifest(
+        config, sources, counter, tokenizer_fingerprint=tokenizer_fingerprint
+    )
+    return manifest, write_manifest(config.resolve(config.chunking.manifest), manifest)
+
+
 def check_manifest(config: RagConfig, counter: TokenCounter, *, tokenizer_fingerprint: str) -> bool:
     """True if a fresh build reproduces the saved manifest byte for byte."""
     sources = load_sources(config.resolve(config.corpus.sources))
@@ -119,8 +133,12 @@ def check_manifest(config: RagConfig, counter: TokenCounter, *, tokenizer_finger
 def main(argv: list[str] | None = None) -> int:
     configure_logging()
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--check", action="store_true", help="verify the saved manifest; write nothing"
+    )
+    mode.add_argument(
+        "--manifest-only", action="store_true", help="write the chunk manifest; no index"
     )
     args = parser.parse_args(argv)
     config = RagConfig.load()
@@ -134,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
         problems.append(str(exc))
     counter: WordPieceCounter | OnnxEmbedder | None = None
     try:
-        if args.check:
+        if args.check or args.manifest_only:
             counter = WordPieceCounter.from_settings(settings, config.root)
         else:
             counter = OnnxEmbedder(settings, config.root)
@@ -144,6 +162,12 @@ def main(argv: list[str] | None = None) -> int:
         print("ingest cannot run:\n- " + "\n- ".join(problems), file=sys.stderr)
         return 1
     try:
+        if isinstance(counter, WordPieceCounter) and args.manifest_only:
+            manifest, sha = write_chunk_manifest(
+                config, counter, tokenizer_fingerprint=settings.tokenizer_fingerprint()
+            )
+            print(f"chunks: {manifest.chunk_count}; chunk manifest sha256 {sha}")
+            return 0
         if isinstance(counter, WordPieceCounter):
             same = check_manifest(
                 config, counter, tokenizer_fingerprint=settings.tokenizer_fingerprint()

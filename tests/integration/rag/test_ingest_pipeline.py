@@ -49,7 +49,7 @@ def test_manifest_records_kind_domain_and_locations(config: RagConfig) -> None:
         ("DIV8[§ 99.10]/P[6]",),
     )
     guidance = by_id["synthetic-guidance/II.A"]
-    assert (guidance.doc_kind, guidance.pages) == ("guidance", (2,))
+    assert (guidance.doc_kind, guidance.pages) == ("guidance", (3,))
     assert guidance.domain == "Synthetic ledgers (test only)"
     assert manifest.corpus_fingerprint == sources.fingerprint()
     assert all(c.token_count <= EMBEDDER.max_tokens for c in manifest.chunks)

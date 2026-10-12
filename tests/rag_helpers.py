@@ -23,8 +23,8 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures" / "rag"
 SYNTHETIC_ECFR = FIXTURES / "ecfr_part99_synthetic.xml"
 
 
-def make_pdf(pages: Sequence[Sequence[str]], outline: Sequence[tuple[int, str, int]] = ()) -> bytes:
-    """A PDF with one text line per entry; outline items are (level, title, 0-based page)."""
+def make_pdf(pages: Sequence[Sequence[str]]) -> bytes:
+    """A PDF with one text line per entry."""
     writer = PdfWriter()
     font = DictionaryObject(
         {
@@ -47,9 +47,6 @@ def make_pdf(pages: Sequence[Sequence[str]], outline: Sequence[tuple[int, str, i
         page[NameObject("/Resources")] = DictionaryObject(
             {NameObject("/Font"): DictionaryObject({NameObject("/F1"): font_ref})}
         )
-    parents: dict[int, Any] = {}
-    for level, title, page_index in outline:
-        parents[level] = writer.add_outline_item(title, page_index, parent=parents.get(level - 1))
     buffer = io.BytesIO()
     writer.write(buffer)
     return buffer.getvalue()
@@ -125,32 +122,35 @@ GUIDANCE_DOC: dict[str, Any] = {
     "file": "guidance.pdf",
     "source_url": "https://example.invalid/guidance.pdf",
     "reuse_notice": "Synthetic test data.",
+    "pdf": {"toc_pages": [2]},
 }
 
 GUIDANCE_PAGES: list[list[str]] = [
     ["Contains Nonbinding Recommendations", "Synthetic Guidance on Ledgers", "January 2020"],
     [
         "Contains Nonbinding Recommendations",
+        "TABLE OF CONTENTS",
+        "I. INTRODUCTION ........................ 1",
+        "II. DISCUSSION .......................... 1",
+        "A. Change Logs ......................... 1",
+        "B. Passwords ........................... 2",
+    ],
+    [
+        "Contains Nonbinding Recommendations",
+        "1",
         "I. INTRODUCTION",
         "This placeholder guidance describes how to keep synthetic ledgers.",
         "II. DISCUSSION",
         "A. Change Logs",
         "Placeholder recommendation: keep a log of each change to a record,",
         "with the operator and the earlier value.",
-        "2",
     ],
     [
         "Contains Nonbinding Recommendations",
+        "2",
         "B. Passwords",
         "Placeholder recommendation about password review and replacement.",
-        "3",
     ],
-]
-GUIDANCE_OUTLINE: list[tuple[int, str, int]] = [
-    (1, "I. INTRODUCTION", 1),
-    (1, "II. DISCUSSION", 1),
-    (2, "A. Change Logs", 1),
-    (2, "B. Passwords", 2),
 ]
 
 
@@ -189,7 +189,7 @@ def synthetic_corpus(root: Path) -> RagConfig:
         root,
         [
             (ECFR_DOC, SYNTHETIC_ECFR.read_bytes()),
-            (GUIDANCE_DOC, make_pdf(GUIDANCE_PAGES, GUIDANCE_OUTLINE)),
+            (GUIDANCE_DOC, make_pdf(GUIDANCE_PAGES)),
         ],
     )
 
