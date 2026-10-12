@@ -60,7 +60,9 @@ class Recorder:
 
 def _backend(handler: Handler) -> tuple[AnthropicBackend, Recorder]:
     recorder = Recorder(handler)
-    http_client = anthropic.DefaultHttpxClient(transport=httpx2.MockTransport(recorder))
+    http_client = anthropic.DefaultHttpxClient(
+        transport=httpx2.MockTransport(recorder), trust_env=False
+    )
     backend = AnthropicBackend(api_key="test-key", timeout_s=5.0, http_client=http_client)
     return backend, recorder
 

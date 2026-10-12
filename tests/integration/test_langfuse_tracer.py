@@ -8,10 +8,12 @@ ingestion, so they are checked against a stand-in client instead.
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from collections.abc import Iterator
 from typing import Any
 
+import httpx
 import pytest
 from langfuse import Langfuse
 from langfuse import LangfuseOtelSpanAttributes as A
@@ -21,6 +23,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from apps.core.tracing.base import TraceAttributes
 from apps.core.tracing.langfuse_tracer import LangfuseTracer
 from apps.core.types import Usage
+from tests.integration.conftest import HOSTILE_PROXY, PROXY_VARS
 
 
 @pytest.fixture
@@ -29,18 +32,38 @@ def exporter() -> InMemorySpanExporter:
 
 
 @pytest.fixture
-def tracer(exporter: InMemorySpanExporter) -> Iterator[LangfuseTracer]:
+def tracer(
+    exporter: InMemorySpanExporter, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[LangfuseTracer]:
     # The SDK caches one client per public key, so each test uses a fresh key.
-    client = Langfuse(
-        public_key=f"pk-lf-test-{uuid.uuid4().hex}",
-        secret_key="sk-lf-test-offline",
-        base_url="http://localhost:9",
-        tracer_provider=TracerProvider(),
-        span_exporter=exporter,
-        flush_at=1,
-    )
+    # The injected client ignores host proxy settings (trust_env=False); the sync
+    # API client and score ingestion use it. langfuse 4.17 also always builds an
+    # internal httpx.AsyncClient from the environment, which cannot be injected, so
+    # the client is constructed with proxy variables cleared. The hostile proxy env
+    # from conftest.py is back in place for the test body.
+    http_client = httpx.Client(trust_env=False)
+    with monkeypatch.context() as m:
+        for name in PROXY_VARS:
+            m.delenv(name, raising=False)
+        client = Langfuse(
+            public_key=f"pk-lf-test-{uuid.uuid4().hex}",
+            secret_key="sk-lf-test-offline",
+            base_url="http://localhost:9",
+            httpx_client=http_client,
+            tracer_provider=TracerProvider(),
+            span_exporter=exporter,
+            flush_at=1,
+        )
     yield LangfuseTracer(client)
     client.flush()
+    http_client.close()
+
+
+def test_fixture_runs_under_hostile_proxy_env(tracer: LangfuseTracer) -> None:
+    """Regression (review finding 5): the suite must pass with a SOCKS proxy configured."""
+    assert os.environ["ALL_PROXY"] == HOSTILE_PROXY
+    with tracer.observe("x"):
+        pass
 
 
 def _spans(tracer: LangfuseTracer, exporter: InMemorySpanExporter) -> dict[str, ReadableSpan]:
