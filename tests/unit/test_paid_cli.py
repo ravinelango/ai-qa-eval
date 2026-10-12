@@ -83,7 +83,7 @@ def test_non_terminal_stdin_is_unattended() -> None:
 def test_ci_without_unattended_flag_cannot_use_interactive_path(registry: ModelRegistry) -> None:
     """CI=true, --allow-paid, no --unattended, one Haiku call: the shipped (null)
     profiles must block it. Before the fix this produced a guard allowing 3 attempts."""
-    with pytest.raises(BudgetConfigError, match=r"CI environment detected \(CI is set\)"):
+    with pytest.raises(BudgetConfigError, match="CI environment detected: CI is set"):
         prepare_paid_run(
             _args("--allow-paid"),
             ONE_HAIKU_CALL,

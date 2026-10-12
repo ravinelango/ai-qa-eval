@@ -74,7 +74,7 @@ def detect_run_mode(
     for name in CI_MARKERS:
         value = env.get(name, "").strip().lower()
         if value and value not in {"false", "0"}:
-            return ModeDecision("unattended", f"CI environment detected ({name} is set)")
+            return ModeDecision("unattended", f"CI environment detected: {name} is set")
     tty = sys.stdin.isatty() if stdin_is_tty is None else stdin_is_tty
     if not tty:
         return ModeDecision("unattended", "stdin is not a terminal")
