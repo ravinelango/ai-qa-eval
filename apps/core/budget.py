@@ -177,6 +177,7 @@ def authorize_run(
     budgets: BudgetsConfig,
     profile: str | None = None,
     confirm: Callable[[str], bool] | None = None,
+    mode_reason: str | None = None,
 ) -> BudgetLimits:
     """Return the limits this run must stay within, or raise.
 
@@ -184,6 +185,7 @@ def authorize_run(
     above the approval threshold are shown to the user and need confirm() -> True.
     Unattended: never prompts. Limits come from the named profile; missing limits
     stop the run, and a plan that cannot fit even without retries is rejected.
+    `mode_reason` (why the run is unattended) is included in refusals.
     """
     if mode == "interactive":
         limits = BudgetLimits(
@@ -204,14 +206,17 @@ def authorize_run(
                 raise PlanRejectedError("run declined at the approval prompt")
         return limits
 
+    why = f"unattended run ({mode_reason})" if mode_reason else "unattended run"
     if profile is None:
-        raise BudgetConfigError("unattended paid runs must name a budget profile")
+        raise BudgetConfigError(f"{why}: paid execution needs --budget-profile")
     configured = budgets.profiles.get(profile)
     if configured is None:
-        raise BudgetConfigError(f"budget profile {profile!r} is not defined in config/budgets.yaml")
+        raise BudgetConfigError(
+            f"{why}: budget profile {profile!r} is not defined in config/budgets.yaml"
+        )
     if configured.max_request_attempts is None or configured.max_estimated_cost_usd is None:
         raise BudgetConfigError(
-            f"budget profile {profile!r} has no approved limits; paid execution is blocked"
+            f"{why}: budget profile {profile!r} has no approved limits; paid execution is blocked"
         )
     limits = BudgetLimits(configured.max_request_attempts, configured.max_estimated_cost_usd)
     if estimate.attempts_no_retry > limits.max_request_attempts:
