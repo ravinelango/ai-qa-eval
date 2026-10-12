@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,10 @@ import yaml
 from pydantic import ValidationError
 
 from apps.core.errors import ConfigurationError
+from apps.core.models import REPO_ROOT
 from apps.rag.smoke import DEFAULT_SPEC, Expectation, SmokeSpec, load_spec, matches
+
+MANIFEST = REPO_ROOT / "data" / "index" / "chunk_manifest.json"
 
 
 def test_shipped_spec_fixes_top_k_and_thresholds_and_is_marked_unreviewed() -> None:
@@ -19,8 +23,17 @@ def test_shipped_spec_fixes_top_k_and_thresholds_and_is_marked_unreviewed() -> N
     assert spec.min_hit_rate == {"section_lookup": 0.8, "paraphrase": 0.8}
     assert spec.reviewed_by_human is False
     kinds = [q.kind for q in spec.queries]
-    assert kinds.count("section_lookup") == 10
-    assert kinds.count("paraphrase") == 10
+    assert kinds.count("section_lookup") == 12
+    assert kinds.count("paraphrase") == 16
+    # Every expectation names a document and section that exist in the frozen corpus.
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8")) if MANIFEST.exists() else None
+    if manifest is not None:
+        known = {(c["doc_id"], c["locator"]) for c in manifest["chunks"]}
+        for query in spec.queries:
+            for e in query.expect:
+                assert any(d == e.doc_id and matches(d, loc, e) for d, loc in known), (
+                    f"{query.id}: {e} matches no chunk"
+                )
     assert len(sha) == 64
     # Kept apart from the human-reviewed golden set.
     assert DEFAULT_SPEC.parent.name == "dev_checks"
