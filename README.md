@@ -25,14 +25,14 @@ The corpus is FDA 21 CFR Part 11 and related public FDA guidance.
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Scaffold, provider contract, budget guard, tracing, CI | **done** (merged) |
-| 1a | Corpus, ingest, chunking, local index, RAG assistant | **corpus frozen, chunk manifest built; model download blocked, so no index or smoke result yet** |
+| 1a | Corpus, ingest, chunking, local index, RAG assistant | **built and run; retrieval smoke check failed its thresholds (see `reports/retrieval_smoke/`), checkpoint in review** |
 | 1b–1e | Golden dataset, metrics, judge validation, CI gate | not started |
 | 2 | Agent, adversarial cases, promptfoo/garak, findings report | not started |
 | 3 | Experiment runner, stats module, Streamlit dashboard | not started |
 
 No evaluation, judge-validation, red-team or A/B results exist yet. `reports/` is empty
-on purpose. No retrieval result exists yet either: the embedding model's download host
-(`us.aws.cdn.hf.co`) is refused by the build environment's network policy.
+on purpose, apart from one developer-authored retrieval smoke check, which failed its
+thresholds (`reports/retrieval_smoke/`).
 
 ## Quickstart (no API keys, no network at runtime)
 
@@ -162,9 +162,11 @@ make retrieval-smoke  # developer-authored retrieval check on the real index
 embedder, the real Chroma client and the scripted fake provider. Every fixture is
 labeled synthetic.
 
-**Not yet done:** the ONNX model download (its host `us.aws.cdn.hf.co` is refused by the
-build environment's network policy), and so the index, `make test-model` and the
-smoke-check result.
+**Real-model run (2026-10-13):** `make model-fetch` installed the pinned files, `make ingest`
+built a 149-vector index and `make test-model` passed 4 of 4. `make retrieval-smoke`
+**failed** both thresholds: section lookups 7/12 (0.58) and paraphrases 11/16 (0.69),
+minimum 0.8 each. The queries and thresholds are unchanged; the report is in
+`reports/retrieval_smoke/`.
 
 ## Limitations (Phase 0)
 

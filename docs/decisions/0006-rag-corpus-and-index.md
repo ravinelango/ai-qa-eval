@@ -1,10 +1,10 @@
 # 0006 — RAG corpus, chunking, index and assistant
 
 **Status:** accepted (Phase 1a scope approved by the repo owner, 2026-10-12, with six
-clarifications). The corpus is downloaded and frozen, the model is pinned and the
-chunk manifest is built. The ONNX model file itself cannot be downloaded yet (its
-download host is refused by the build environment's network policy), so the index and
-the retrieval smoke check have not been run.
+clarifications). Everything is built and has run on the real model. The retrieval
+smoke check failed its pre-set thresholds on 2026-10-13 (section lookups 7/12,
+paraphrases 11/16; minimum 0.8 each); see `reports/retrieval_smoke/`. The check is
+unchanged pending the owner's review.
 
 ## Corpus
 - **Sources:** 21 CFR Part 11 from the eCFR (as of 2026-10-08), plus three final FDA
@@ -109,9 +109,7 @@ Phase 1a makes no API calls. The generator alias (`sonnet`) is refused without
 `--allow-paid`. No paid run is approved, including the optional live smoke.
 
 ## Open items
-- **Model download:** Hugging Face serves `onnx/model.onnx` from `us.aws.cdn.hf.co`,
-  which the build environment's network policy refuses. The file is pinned by the
-  SHA-256 in the repo's LFS metadata; `make model-fetch` verifies the download against
-  it. Until it is allowed, there is no index and no smoke-check result.
+- **Retrieval smoke check failed** (see `reports/retrieval_smoke/`). Not changed yet;
+  the next step is the owner's decision.
 - **pre-commit size limit:** not needed. The largest source file is 752 KB, under
   the 1 MB limit.
