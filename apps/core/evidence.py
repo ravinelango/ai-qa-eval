@@ -5,8 +5,9 @@ full requests, the responses or errors, measurements, configuration/version
 identifiers and the trace ID (a supplementary link only).
 
 RAG runs also store, for every question, the retrieved chunks themselves (ID,
-label, text, score, rank) and the parsed answer, and the manifest records the
-prompt hash and the corpus, chunk-manifest and embedding fingerprints.
+label, text, score, rank, and where each ranking placed them) and the parsed
+answer, and the manifest records the prompt hash and the corpus, chunk-manifest,
+embedding and retrieval fingerprints.
 
 `synthetic=True` marks runs produced by the fake provider. Synthetic runs
 demonstrate plumbing; they are never evaluation evidence. Later phases extend this
@@ -33,7 +34,9 @@ from apps.core.types import CompletionRequest, CompletionResponse, FailedAttempt
 
 # 2: CallRecord.settings, failed-attempt history, outstanding reservations.
 # 3: RAG fingerprints in the manifest; retrieval and answer records.
-RUN_FILE_SCHEMA_VERSION = 3
+# 4: retrieval mode, fingerprint and citations; each chunk's embedding, keyword and
+#    citation details.
+RUN_FILE_SCHEMA_VERSION = 4
 
 
 class _Model(BaseModel):
@@ -58,6 +61,8 @@ class RunManifest(_Model):
     corpus_fingerprint: str | None = None
     chunk_manifest_sha256: str | None = None
     embedding_fingerprint: str | None = None
+    # How chunks were ranked (apps.rag.config.RetrievalSettings.fingerprint).
+    retrieval_fingerprint: str | None = None
     notes: str = ""
 
 
@@ -97,8 +102,18 @@ class RetrievedChunkRecord(_Model):
     doc_kind: str
     label: str
     heading_path: list[str]
-    # Cosine similarity between the query and chunk embeddings.
+    # The ranking score. Mode "dense": the cosine similarity of the query and chunk
+    # embeddings. Mode "hybrid": the fused reciprocal-rank score; chunks the question
+    # cites rank first whatever their score.
     score: float
+    # Where the chunk stood in each ranking; None when it was outside that ranking's
+    # candidates (or, in dense mode, for the keyword ranking, which is not run).
+    dense_similarity: float | None
+    dense_rank: int | None
+    lexical_score: float | None
+    lexical_rank: int | None
+    # The citation in the question that points at this chunk, if any.
+    cited_as: str | None
     text: str
     text_sha256: str
 
@@ -106,6 +121,10 @@ class RetrievedChunkRecord(_Model):
 class RetrievalRecord(_Model):
     query: str
     top_k: int
+    mode: Literal["dense", "hybrid"]
+    retrieval_fingerprint: str
+    # Section citations recognized in the query, in order (hybrid mode).
+    citations: list[str]
     embedder: str
     embedding_fingerprint: str
     chunk_manifest_sha256: str

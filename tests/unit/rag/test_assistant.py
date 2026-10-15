@@ -28,7 +28,7 @@ from apps.core.tracing.local import NoopTracer, RecordingTracer
 from apps.core.types import TextBlock
 from apps.rag.assistant import RagAssistant, answer_record_of
 from apps.rag.chunking import build_manifest, chunk_corpus
-from apps.rag.config import GenerationSettings
+from apps.rag.config import GenerationSettings, RagConfig
 from apps.rag.corpus import SourceDocument
 from apps.rag.embedding import HashingEmbedder
 from apps.rag.index import IndexStamp
@@ -62,7 +62,7 @@ def _retriever(tracer: RecordingTracer | None = None) -> Retriever:
         index=index,
         manifest=manifest,
         manifest_sha256="m" * 64,
-        top_k=3,
+        settings=RagConfig.load().retrieval.model_copy(update={"top_k": 3}),
         tracer=tracer,
     )
 
@@ -328,7 +328,7 @@ def test_run_file_stands_alone_with_fingerprints_and_retrieved_text(tmp_path: Pa
     saved = read_run_file(path)
     assert saved == run
     raw = json.loads(path.read_text())
-    assert raw["schema_version"] == 3
+    assert raw["schema_version"] == 4
     top = raw["answers"][0]["retrieval"]["results"][0]
     assert top["chunk_id"] == EXPECTED_TOP
     assert top["text"].startswith("(e) Use of placeholder change logs")

@@ -81,6 +81,19 @@ def test_retrieval_over_the_ingested_index(config: RagConfig) -> None:
     assert record.chunk_manifest_sha256 == retriever.manifest_sha256
 
 
+def test_a_cited_section_comes_first_over_the_ingested_index(config: RagConfig) -> None:
+    ingest(config, EMBEDDER, tokenizer_fingerprint=EMBEDDER.fingerprint)
+    retriever = build_retriever(config, EMBEDDER, tokenizer_fingerprint=EMBEDDER.fingerprint)
+    record = retriever.retrieve("What does 99.10(c) say about placeholder change logs?")
+    assert record.citations == ["99.10(c)"]
+    assert (record.results[0].chunk_id, record.results[0].cited_as) == (
+        "synthetic-part99/99.10(c)",
+        "99.10(c)",
+    )
+    # The keyword and embedding rankings still decide the rest.
+    assert record.results[1].chunk_id == "synthetic-part99/99.10(e)"
+
+
 def test_retriever_refuses_an_index_built_with_another_embedder(config: RagConfig) -> None:
     ingest(config, EMBEDDER, tokenizer_fingerprint=EMBEDDER.fingerprint)
     other = HashingEmbedder(dimensions=64, max_tokens=64)

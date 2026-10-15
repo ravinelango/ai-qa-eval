@@ -62,6 +62,8 @@ def test_report_on_the_synthetic_corpus(tmp_path: Path) -> None:
     assert report.passed is True
     assert report.manifest.synthetic is True
     assert report.manifest.embedding_fingerprint == embedder.fingerprint
+    assert report.manifest.retrieval_fingerprint == config.retrieval.fingerprint()
+    assert all(r.retrieval.mode == "hybrid" for r in report.results)
     assert all(len(r.retrieval.results) == 2 for r in report.results)
 
     path = write_report(report, tmp_path / "out")

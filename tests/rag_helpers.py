@@ -15,9 +15,11 @@ import yaml
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
-from apps.rag.chunking import Chunk
+from apps.rag.chunking import Chunk, ChunkManifest, TokenCounter, build_manifest, chunk_corpus
 from apps.rag.config import RagConfig
+from apps.rag.corpus import SourceDocument
 from apps.rag.index import IndexStamp
+from apps.rag.parse_ecfr import parse_ecfr_part
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "rag"
 SYNTHETIC_ECFR = FIXTURES / "ecfr_part99_synthetic.xml"
@@ -196,3 +198,17 @@ def synthetic_corpus(root: Path) -> RagConfig:
 
 def today() -> date:
     return date(2026, 1, 5)
+
+
+def part99_manifest(counter: TokenCounter) -> ChunkManifest:
+    """The synthetic Part 99 chunked with `counter`, without writing a corpus to disk."""
+    data = SYNTHETIC_ECFR.read_bytes()
+    document = SourceDocument.model_validate(frozen_entry(ECFR_DOC, data))
+    units = parse_ecfr_part(data, doc_id=document.doc_id, part="99")
+    return build_manifest(
+        chunk_corpus([(document, units)], counter),
+        chunker_version=1,
+        corpus_fingerprint="c" * 64,
+        tokenizer_fingerprint="t" * 64,
+        max_tokens=counter.max_tokens,
+    )

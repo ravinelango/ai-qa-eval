@@ -18,6 +18,7 @@ dependencies = [
     "pydantic-settings==2.15.0",
     "pypdf==6.19.0",
     "pyyaml==6.0.3",
+    "snowballstemmer==3.1.1",
     "tokenizers==0.23.2",
 ]
 
@@ -72,6 +73,12 @@ follow_untyped_imports = true
 # onnxruntime ships no type information; it is used in one function
 # (apps.rag.embedding.load_onnx_session).
 module = ["onnxruntime", "onnxruntime.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# snowballstemmer ships no type information; it is used in one class
+# (apps.rag.lexical.Analyzer).
+module = ["snowballstemmer", "snowballstemmer.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

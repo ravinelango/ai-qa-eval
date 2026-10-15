@@ -59,7 +59,21 @@ index:
   ef_search: 200
 
 retrieval:
+  # Bump when a code change alters the ranking.
+  version: 1
   top_k: 5
+  # dense: the embedding ranking alone (how Phase 1a first ran).
+  # hybrid: the embedding ranking and a BM25 keyword ranking, fused by reciprocal
+  # rank; chunks a question cites by section number ("11.10(e)", "III.C.4") rank
+  # first. See docs/decisions/0006-rag-corpus-and-index.md. The values below are the
+  # usual published defaults (BM25 as in Lucene; RRF k = 60 from Cormack et al.,
+  # 2009), chosen before the hybrid ranking was run on the smoke check.
+  mode: hybrid
+  candidates: 50
+  bm25:
+    k1: 1.2
+    b: 0.75
+  rrf_k: 60
 
 generation:
   # Provisional generator (README, "Decisions recorded for Phase 1").

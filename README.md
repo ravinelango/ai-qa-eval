@@ -25,7 +25,7 @@ The corpus is FDA 21 CFR Part 11 and related public FDA guidance.
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Scaffold, provider contract, budget guard, tracing, CI | **done** (merged) |
-| 1a | Corpus, ingest, chunking, local index, RAG assistant | **built and run; retrieval smoke check failed its thresholds (see `reports/retrieval_smoke/`), checkpoint in review** |
+| 1a | Corpus, ingest, chunking, local index, RAG assistant | **built and run; retrieval smoke check failed with the embedding ranking alone; hybrid ranking added, rerun pending; checkpoint in review** |
 | 1b–1e | Golden dataset, metrics, judge validation, CI gate | not started |
 | 2 | Agent, adversarial cases, promptfoo/garak, findings report | not started |
 | 3 | Experiment runner, stats module, Streamlit dashboard | not started |
@@ -148,9 +148,12 @@ make retrieval-smoke  # developer-authored retrieval check on the real index
 - **Embedders:** bge-small-en-v1.5 on onnxruntime, pinned by revision and SHA-256,
   plus a hashing test double. **Index:** local Chroma; idempotent sync; refuses a
   stale index.
+- **Retriever:** the embedding ranking fused with a BM25 keyword ranking, with chunks
+  a question cites by section number ranked first. Each retrieved chunk records its
+  score in both rankings and the citation that matched it.
 - **Assistant:** `answer()` returns the behavior class, answer, cited and unretrieved
   citations, retrieved chunks with scores, the prompt version and hash, and the trace
-  ID. Run files (schema 3) include fingerprints and retrieved text.
+  ID. Run files (schema 4) include fingerprints and retrieved text.
 - **Chunk manifest:** 149 chunks (max 509 of 512 tokens), committed, and reproduced
   byte for byte by `make ingest-check` and by a CI test that uses the committed,
   pinned tokenizer (`data/models/bge-small-en-v1.5/`, MIT, with its source recorded).
@@ -164,9 +167,15 @@ labeled synthetic.
 
 **Real-model run (2026-10-13):** `make model-fetch` installed the pinned files, `make ingest`
 built a 149-vector index and `make test-model` passed 4 of 4. `make retrieval-smoke`
-**failed** both thresholds: section lookups 7/12 (0.58) and paraphrases 11/16 (0.69),
-minimum 0.8 each. The queries and thresholds are unchanged; the report is in
+with the embedding ranking alone **failed** both thresholds: section lookups 7/12
+(0.58) and paraphrases 11/16 (0.69), minimum 0.8 each. The report is in
 `reports/retrieval_smoke/`.
+
+**Hybrid retrieval (approved 2026-10-15):** the retriever now fuses the embedding
+ranking with a BM25 keyword ranking, and ranks chunks a question cites by section
+number first ([0006](docs/decisions/0006-rag-corpus-and-index.md#retrieval)). The
+smoke queries and thresholds are unchanged. It was designed after the failed run, so
+a pass on the same queries is not independent evidence.
 
 ## Limitations (Phase 0)
 

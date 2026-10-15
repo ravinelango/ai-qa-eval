@@ -33,7 +33,8 @@ from apps.rag.errors import RagError
 from apps.rag.retrieve import Retriever, build_retriever
 
 DEFAULT_SPEC = REPO_ROOT / "evals" / "dev_checks" / "retrieval_smoke.yaml"
-REPORT_SCHEMA_VERSION = 1
+# 2: retrieval records carry the ranking mode, fingerprint and per-chunk details.
+REPORT_SCHEMA_VERSION = 2
 
 QueryKind = Literal["section_lookup", "paraphrase"]
 
@@ -117,7 +118,7 @@ class KindSummary(_Strict):
 
 
 class SmokeReport(_Strict):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     manifest: RunManifest
     spec_path: str
     spec_sha256: str
@@ -199,6 +200,7 @@ def build_report(
         corpus_fingerprint=retriever.manifest.corpus_fingerprint,
         chunk_manifest_sha256=retriever.manifest_sha256,
         embedding_fingerprint=retriever.embedder.fingerprint,
+        retrieval_fingerprint=retriever.fingerprint,
         notes=notes,
     )
     try:

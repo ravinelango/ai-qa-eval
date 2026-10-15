@@ -114,8 +114,27 @@ class IndexSettings(_Strict):
     ef_search: int = Field(gt=0)
 
 
+class Bm25Settings(_Strict):
+    k1: float = Field(gt=0)
+    b: float = Field(ge=0, le=1)
+
+
 class RetrievalSettings(_Strict):
+    # Bump when a code change alters the ranking (keyword analysis, citation rules,
+    # fusion), so records from before and after cannot pass as the same method.
+    version: int = Field(ge=1)
     top_k: int = Field(ge=1, le=50)
+    mode: Literal["dense", "hybrid"]
+    # Hybrid mode: how many chunks each ranking (embedding, keyword) contributes
+    # to the fusion.
+    candidates: int = Field(ge=1)
+    bm25: Bm25Settings
+    # Reciprocal rank fusion constant: a chunk scores 1 / (rrf_k + rank) per ranking.
+    rrf_k: int = Field(ge=1)
+
+    def fingerprint(self) -> str:
+        """What determines the ranking. top_k is left out; each record states it."""
+        return canonical_sha256(self.model_dump(mode="json", exclude={"top_k"}))
 
 
 class GenerationSettings(_Strict):

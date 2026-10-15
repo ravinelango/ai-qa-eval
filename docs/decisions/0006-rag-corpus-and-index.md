@@ -1,10 +1,12 @@
 # 0006 — RAG corpus, chunking, index and assistant
 
 **Status:** accepted (Phase 1a scope approved by the repo owner, 2026-10-12, with six
-clarifications). Everything is built and has run on the real model. The retrieval
-smoke check failed its pre-set thresholds on 2026-10-13 (section lookups 7/12,
-paraphrases 11/16; minimum 0.8 each); see `reports/retrieval_smoke/`. The check is
-unchanged pending the owner's review.
+clarifications). Everything is built and has run on the real model. With the embedding
+ranking alone, the retrieval smoke check failed its pre-set thresholds on 2026-10-13
+(section lookups 7/12, paraphrases 11/16; minimum 0.8 each); see
+`reports/retrieval_smoke/`. On 2026-10-15 the owner approved adding keyword and
+section-number matching (see Retrieval), with the check's queries and thresholds
+unchanged.
 
 ## Corpus
 - **Sources:** 21 CFR Part 11 from the eCFR (as of 2026-10-08), plus three final FDA
@@ -72,6 +74,44 @@ unchanged pending the owner's review.
 - **Tests:** the default suite never loads the real model. `tests/conftest.py` sets a
   flag that makes the loader raise. Model tests run with `make test-model`.
 
+## Retrieval
+- **Why it changed:** the first real run used the embedding ranking alone and missed 5
+  of 12 section lookups and 5 of 16 paraphrases. Most lookup misses cite a section
+  number, which the embedding does not match on, and several returned a neighbouring
+  section. The owner approved adding keyword and section-number matching on
+  2026-10-15.
+- **Modes:** `retrieval.mode` in `config/rag.yaml`. `dense` is the embedding ranking
+  alone, as in the first run. `hybrid`, the default, is described below.
+- **Keyword ranking:** BM25 over the same text that is embedded (heading path, label,
+  text). The text is lowercased, a possessive "'s" is dropped, and the rest is split
+  into letter and digit runs. Lucene's English stop words are removed and words are
+  stemmed with the Snowball English stemmer (`snowballstemmer`, pinned). The keyword
+  index is built in memory from the chunk manifest at start-up, so there is no second
+  index to keep in step.
+- **Fusion:** each ranking contributes its top 50 chunks. A chunk scores
+  1 / (60 + rank) in each ranking it appears in (reciprocal rank fusion). Ties are
+  broken by embedding similarity, then chunk ID.
+- **Citations:** chunks that a question cites by section number (`11.10(e)`,
+  `§ 11.3`, `III.C.4`) rank first: for each citation, its best-scoring chunk, then the
+  other cited chunks by score. A citation covers the paragraphs under it, so a cited
+  section with many paragraphs (§ 11.1 has 16) can fill the top k on its own. That is
+  intended, because the question asks about that section. Not recognized: a Roman
+  numeral on its own, question numbers ("question 8") and document titles. The CFR
+  title number is not checked, because the corpus holds one title.
+- **Parameters:** BM25 k1 = 1.2 and b = 0.75 (Lucene's defaults), RRF k = 60 (Cormack,
+  Clarke and Büttcher, 2009), and 50 candidates. These are published defaults, chosen
+  and committed before the hybrid ranking ran on the smoke check, and not tuned on it.
+  A test pins them.
+- **Evidence:** each retrieval record holds the mode, a retrieval fingerprint (every
+  setting except top_k, plus `retrieval.version`), the citations found, and for each
+  chunk the fused score, embedding similarity and rank, BM25 score and rank, and the
+  citation that matched it. Run files are now schema 4 and smoke reports schema 2.
+- **Limits of the smoke check:** the hybrid ranking was designed after seeing which
+  smoke queries failed, so a pass on the same 28 queries is not independent evidence
+  that it works on other questions. The citation rule targets the section-lookup kind
+  directly. Independent evidence needs queries written after this change, ideally by
+  the owner, such as the human-reviewed set planned for Phase 1b.
+
 ## Assistant
 - **Output:** `answer(question)` returns the behavior class (`answer`, `dont_know`,
   `refuse`; or `invalid` for output that breaks the contract, or `error` for a failed
@@ -96,20 +136,21 @@ retrieval (IDs, labels, text, scores), so run files do not depend on traces. Tra
 record the prompt version and the retrieved chunk IDs and scores.
 
 ## Retrieval smoke check
-`evals/dev_checks/retrieval_smoke.yaml` has 10 section lookups and 10 paraphrased
-questions on Part 11, written by the developer and not human-reviewed. Top-k (5) and
-the pass threshold (hit rate ≥ 0.8 for each kind) were fixed before any run. A query
-hits when a top-k chunk matches the expected document and locator, or a locator
-nested under it. The check is kept apart from the human-reviewed evaluation set and is
-never reported as an evaluation result. Guidance queries will be added once the
-guidance text is in the corpus, before the first run.
+`evals/dev_checks/retrieval_smoke.yaml` has 12 section lookups and 16 paraphrased
+questions on Part 11 and the three guidance documents. They were written by the
+developer and are not human-reviewed. Top-k (5) and the pass threshold (hit rate ≥ 0.8
+for each kind) were fixed before any run. A query hits when a top-k chunk matches the
+expected document and locator, or a locator nested under it. The check is kept apart
+from the human-reviewed evaluation set and is never reported as an evaluation result.
+The spec has not changed since the first run (SHA-256 `b70654fd…`), and neither has
+the hit rule in `apps/rag/smoke.py`.
 
 ## Spending
 Phase 1a makes no API calls. The generator alias (`sonnet`) is refused without
 `--allow-paid`. No paid run is approved, including the optional live smoke.
 
 ## Open items
-- **Retrieval smoke check failed** (see `reports/retrieval_smoke/`). Not changed yet;
-  the next step is the owner's decision.
+- **Retrieval smoke check:** failed with the embedding ranking alone. It will be
+  rerun with the hybrid ranking, with the same queries and thresholds.
 - **pre-commit size limit:** not needed. The largest source file is 752 KB, under
   the 1 MB limit.
