@@ -55,7 +55,10 @@ def test_things_that_are_not_citations(question: str) -> None:
         (Citation(REG, "11.10(e)"), REG, "11.10(f)", False),
         (Citation(REG, "11.10"), GUIDE, "11.10", False),
         (Citation(GUIDE, "III.C"), GUIDE, "III.C.4", True),
-        (Citation(GUIDE, "III.C.4.a"), GUIDE, "III.C.4", True),
+        # Every numbered guidance heading is its own chunk, so a guidance section never
+        # holds a finer citation: section III of the CSA guidance has no III.C.4.
+        (Citation(GUIDE, "III.C.4"), GUIDE, "III", False),
+        (Citation(GUIDE, "III.C.4.a"), GUIDE, "III.C.4", False),
         (Citation(GUIDE, "III.C.4"), GUIDE, "III.C.4", True),
         (Citation(GUIDE, "III.1"), GUIDE, "III.10", False),
         (Citation(GUIDE, "III.C"), GUIDE, "III.C-intro", False),

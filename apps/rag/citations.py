@@ -11,10 +11,13 @@ chunks it points at first (apps.rag.retrieve). Two forms are recognized:
   III.1.a. It points at chunks with that section number in any guidance document.
   A Roman numeral alone ("section III") is not recognized.
 
-A citation points at a chunk when the chunk's locator is the cited one, sits under
-it (11.10 covers 11.10(e) and 11.10-intro; III.C covers III.C.4) or contains it (the
-chunk 11.10(e) holds 11.10(e)(1)). Nothing is inferred from document titles or
-question numbers.
+A citation points at a chunk when the chunk's locator is the cited one or sits under
+it (11.10 covers 11.10(e) and 11.10-intro; III.C covers III.C.4). A regulation chunk
+also covers a finer citation inside it: the chunk 11.10(e) holds 11.10(e)(1), because
+regulation chunks are whole top-level paragraphs. Guidance chunks do not: every
+numbered heading in a guidance document is its own chunk, so a guidance section with
+no subsections (section III of one document) does not hold III.C.4 (of another).
+Nothing is inferred from document titles or question numbers.
 """
 
 from __future__ import annotations
@@ -55,7 +58,10 @@ def points_at(citation: Citation, doc_kind: str, locator: str) -> bool:
     if doc_kind != citation.kind:
         return False
     want = citation.locator
-    sep = "(" if citation.kind == "regulation" else "."
-    if locator == want or locator.startswith(want + sep) or want.startswith(locator + sep):
-        return True
-    return citation.kind == "regulation" and locator == f"{want}-intro"
+    if citation.kind == "guidance":
+        return locator == want or locator.startswith(want + ".")
+    return (
+        locator in (want, f"{want}-intro")
+        or locator.startswith(want + "(")
+        or want.startswith(locator + "(")
+    )

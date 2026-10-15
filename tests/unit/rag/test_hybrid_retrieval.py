@@ -125,7 +125,7 @@ def test_the_fingerprint_tracks_everything_but_top_k() -> None:
     assert _settings(top_k=9).fingerprint() == base
     for change in (
         {"mode": "dense"},
-        {"version": 2},
+        {"version": SHIPPED.version + 1},
         {"candidates": 10},
         {"rrf_k": 1},
         {"bm25": {"k1": 1.5, "b": 0.75}},

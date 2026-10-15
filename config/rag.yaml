@@ -59,8 +59,9 @@ index:
   ef_search: 200
 
 retrieval:
-  # Bump when a code change alters the ranking.
-  version: 1
+  # Bump when a code change alters the ranking. 2: a guidance section no longer
+  # matches a finer citation (III.C.4 pointed at another document's section III).
+  version: 2
   top_k: 5
   # dense: the embedding ranking alone (how Phase 1a first ran).
   # hybrid: the embedding ranking and a BM25 keyword ranking, fused by reciprocal

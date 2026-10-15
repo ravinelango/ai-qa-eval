@@ -21,7 +21,7 @@ def test_shipped_config_resolves_and_points_at_real_files() -> None:
     # The ranking settings were fixed before the hybrid ranking first ran on the smoke
     # check; a change here should be a deliberate, reviewed one.
     assert config.retrieval.model_dump() == {
-        "version": 1,
+        "version": 2,
         "top_k": 5,
         "mode": "hybrid",
         "candidates": 50,

@@ -96,7 +96,12 @@ lookups 12/12 passed, paraphrases 12/16 (0.75) did not.
   `§ 11.3`, `III.C.4`) rank first: for each citation, its best-scoring chunk, then the
   other cited chunks by score. A citation covers the paragraphs under it, so a cited
   section with many paragraphs (§ 11.1 has 16) can fill the top k on its own. That is
-  intended, because the question asks about that section. Not recognized: a Roman
+  intended, because the question asks about that section. A regulation chunk also
+  covers a finer citation inside it (the chunk §11.10(e) holds 11.10(e)(1)); a
+  guidance chunk does not, because every numbered guidance heading is its own chunk.
+  (Until `retrieval.version` 2 the guidance rule matched too, so the computer software
+  assurance guidance's section III matched III.C.4 of the scope guidance.) Not
+  recognized: a Roman
   numeral on its own, question numbers ("question 8") and document titles. The CFR
   title number is not checked, because the corpus holds one title.
 - **Parameters:** BM25 k1 = 1.2 and b = 0.75 (Lucene's defaults), RRF k = 60 (Cormack,
@@ -155,9 +160,8 @@ Phase 1a makes no API calls. The generator alias (`sonnet`) is refused without
   ranking fixed P09, P10, P13 and P16 but lost P01 and P14 (first by embedding, below
   50th by keyword, so fusion pushed them down) and P08. Nothing has been changed after
   the run; the next step is the owner's decision.
-- **Citation rule defect (not fixed):** a chunk can "contain" a finer citation, which
-  is right for regulation paragraphs but let the computer software assurance
-  guidance's section III match III.C.4 from the scope guidance (L11, still a hit at
-  rank 2).
+- **Citation rule defect:** fixed in `retrieval.version` 2 (approved 2026-10-15). A
+  guidance chunk no longer matches a finer citation, so section III of the computer
+  software assurance guidance no longer matches III.C.4 (L11).
 - **pre-commit size limit:** not needed. The largest source file is 752 KB, under
   the 1 MB limit.
