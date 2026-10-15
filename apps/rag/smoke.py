@@ -61,7 +61,8 @@ class SmokeQuery(_Strict):
 class SmokeSpec(_Strict):
     purpose: str
     authored_by: str
-    reviewed_by_human: Literal[False]
+    # True only when the owner has reviewed and approved the queries and expectations.
+    reviewed_by_human: bool
     top_k: int = Field(ge=1, le=50)
     min_hit_rate: dict[QueryKind, float]
     queries: tuple[SmokeQuery, ...] = Field(min_length=1)

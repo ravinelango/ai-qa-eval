@@ -1,4 +1,4 @@
-# DEVELOPER-AUTHORED HELD-OUT RETRIEVAL CHECK. NOT HUMAN-REVIEWED. NOT YET RUN.
+# DEVELOPER-DRAFTED HELD-OUT RETRIEVAL CHECK. APPROVED BY THE OWNER, 2026-10-15.
 #
 # A second plumbing check for Phase 1a, written on 2026-10-15 after the hybrid ranking
 # failed the paraphrase threshold of retrieval_smoke.yaml. The hybrid ranking and the
@@ -8,8 +8,8 @@
 # evaluation set, and its results are never reported as evaluation results.
 #
 # How it was written: from the text of the frozen corpus only. No retrieval of any
-# kind has been run on these questions, and none will be until the owner has
-# reviewed them. No expected section is one that retrieval_smoke.yaml names; three
+# kind was run on these questions before the owner reviewed and approved them,
+# unchanged, on 2026-10-15. No expected section is one that retrieval_smoke.yaml names; three
 # (HL03, HP06, HP07) are paragraphs of § 11.300, which its lookup L03 expects as a
 # whole section. Where more than one section plainly answers a question, each is
 # listed.
@@ -17,8 +17,8 @@
 # top_k, the hit rule and the thresholds are the same as retrieval_smoke.yaml's and
 # were fixed with the questions, before any run.
 purpose: Phase 1a held-out retrieval check (plumbing; not an evaluation)
-authored_by: Ravin Elango (owner); drafted by Claude Code, not human-reviewed, 2026-10-15
-reviewed_by_human: false
+authored_by: Ravin Elango (owner); drafted by Claude Code 2026-10-15; reviewed and approved unchanged by the owner 2026-10-15
+reviewed_by_human: true
 top_k: 5
 min_hit_rate:
   section_lookup: 0.8

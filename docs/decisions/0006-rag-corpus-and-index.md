@@ -168,8 +168,8 @@ threshold.
   lookups and 15 paraphrases. Claude Code drafted them from the corpus text only, and
   no retrieval has been run on them. Their expected sections are ones the first check
   does not name. Top-k 5, the hit rule and the 0.8 thresholds are the same as the
-  first check's. They are not human-reviewed. The owner reviews them before their
-  first run, and any change from that review is made before that run.
+  first check's. The owner reviewed and approved them unchanged on 2026-10-15,
+  before their first run.
 - **Candidate change:** cross-encoder reranking, `retrieval.mode: hybrid_rerank`. The
   hybrid ranking's top 50 chunks by fused score, plus any cited chunks, are scored by
   a cross-encoder that reads the question and the chunk's embedded text together.

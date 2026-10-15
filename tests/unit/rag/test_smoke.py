@@ -46,7 +46,7 @@ def test_holdout_spec_matches_the_first_checks_rules_and_names_new_sections() ->
     first, _ = load_spec(DEFAULT_SPEC)
     spec, _ = load_spec(HOLDOUT_SPEC)
     assert (spec.top_k, spec.min_hit_rate) == (first.top_k, first.min_hit_rate)
-    assert spec.reviewed_by_human is False
+    assert spec.reviewed_by_human is True  # approved by the owner before its first run
     kinds = [q.kind for q in spec.queries]
     assert (kinds.count("section_lookup"), kinds.count("paraphrase")) == (6, 15)
     named = {(e.doc_id, e.locator) for q in first.queries for e in q.expect}
@@ -91,7 +91,7 @@ def _spec(**overrides: Any) -> dict[str, Any]:
 
 def test_spec_rules() -> None:
     with pytest.raises(ValidationError):
-        SmokeSpec.model_validate(_spec(reviewed_by_human=True))
+        SmokeSpec.model_validate(_spec(reviewed_by_human="maybe"))
     with pytest.raises(ValidationError, match="every query kind needs a threshold"):
         SmokeSpec.model_validate(_spec(min_hit_rate={"paraphrase": 0.8}))
     with pytest.raises(ValidationError, match="thresholds must be"):
