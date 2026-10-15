@@ -25,7 +25,7 @@ The corpus is FDA 21 CFR Part 11 and related public FDA guidance.
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Scaffold, provider contract, budget guard, tracing, CI | **done** (merged) |
-| 1a | Corpus, ingest, chunking, local index, RAG assistant | **built and run; retrieval smoke check still fails on paraphrases with the hybrid ranking (see `reports/retrieval_smoke/`); checkpoint in review** |
+| 1a | Corpus, ingest, chunking, local index, RAG assistant | **built and run; the held-out retrieval check passes, the original smoke check still fails on 4 paraphrases (see `reports/retrieval_smoke/`); checkpoint in review** |
 | 1b–1e | Golden dataset, metrics, judge validation, CI gate | not started |
 | 2 | Agent, adversarial cases, promptfoo/garak, findings report | not started |
 | 3 | Experiment runner, stats module, Streamlit dashboard | not started |
@@ -163,8 +163,8 @@ make retrieval-smoke  # developer-authored retrieval check on the real index
   paraphrases). Top-k 5 and a ≥ 0.8 hit rate per query kind were fixed before any
   run. It is not an evaluation.
 - **Held-out check:** 21 more developer-drafted queries (6 lookups, 15 paraphrases) on
-  sections the first check does not name, with the same rules. Not yet run; waiting
-  for the owner's review.
+  sections the first check does not name, with the same rules, approved by the owner
+  before their first run.
 
 **How it is verified (offline):** synthetic eCFR XML and generated PDFs, the hashing
 embedder, the real Chroma client and the scripted fake provider. Every fixture is
@@ -193,6 +193,12 @@ reranking. After the owner reviews the held-out questions, the default and the
 candidate each run once on both sets. The candidate becomes the default only if it
 passes every threshold on both
 ([0006](docs/decisions/0006-rag-corpus-and-index.md#held-out-check-and-the-next-change-fixed-before-either-is-run)).
+
+**Comparison (2026-10-15):** on the held-out set both rankings pass (hybrid 13/15
+paraphrases, reranking 15/15). On the original set both fail at 12/16, on the same
+four paraphrases (P01, P08, P11, P14). By the rule, reranking does not become the
+default; hybrid stays
+([comparison](reports/retrieval_smoke/comparison-20261015.md)).
 
 ## Limitations (Phase 0)
 

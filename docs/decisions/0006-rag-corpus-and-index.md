@@ -195,6 +195,11 @@ Phase 1a makes no API calls. The generator alias (`sonnet`) is refused without
 `--allow-paid`. No paid run is approved, including the optional live smoke.
 
 ## Open items
+- **Comparison run (2026-10-15, code `478876e`):** each ranking ran once on both sets
+  (`reports/retrieval_smoke/comparison-20261015.md`). `hybrid`: original 12/12 and
+  12/16 (fail), held-out 6/6 and 13/15 (pass). `hybrid_rerank`: original 12/12 and
+  12/16 (fail), held-out 6/6 and 15/15 (pass). By the decision rule the candidate does
+  not become the default; `hybrid` stays. Neither ranking finds P01, P08, P11 or P14.
 - **Retrieval smoke check:** fails on paraphrases with both rankings. The hybrid
   ranking fixed P09, P10, P13 and P16 but lost P01 and P14 (first by embedding, below
   50th by keyword, so fusion pushed them down) and P08. With the citation fix (run
