@@ -6,7 +6,8 @@ ranking alone, the retrieval smoke check failed its pre-set thresholds on 2026-1
 (section lookups 7/12, paraphrases 11/16; minimum 0.8 each); see
 `reports/retrieval_smoke/`. On 2026-10-15 the owner approved adding keyword and
 section-number matching (see Retrieval), with the check's queries and thresholds
-unchanged.
+unchanged. With the hybrid ranking the check still failed on 2026-10-15: section
+lookups 12/12 passed, paraphrases 12/16 (0.75) did not.
 
 ## Corpus
 - **Sources:** 21 CFR Part 11 from the eCFR (as of 2026-10-08), plus three final FDA
@@ -150,7 +151,13 @@ Phase 1a makes no API calls. The generator alias (`sonnet`) is refused without
 `--allow-paid`. No paid run is approved, including the optional live smoke.
 
 ## Open items
-- **Retrieval smoke check:** failed with the embedding ranking alone. It will be
-  rerun with the hybrid ranking, with the same queries and thresholds.
+- **Retrieval smoke check:** fails with both rankings, on paraphrases. The hybrid
+  ranking fixed P09, P10, P13 and P16 but lost P01 and P14 (first by embedding, below
+  50th by keyword, so fusion pushed them down) and P08. Nothing has been changed after
+  the run; the next step is the owner's decision.
+- **Citation rule defect (not fixed):** a chunk can "contain" a finer citation, which
+  is right for regulation paragraphs but let the computer software assurance
+  guidance's section III match III.C.4 from the scope guidance (L11, still a hit at
+  rank 2).
 - **pre-commit size limit:** not needed. The largest source file is 752 KB, under
   the 1 MB limit.

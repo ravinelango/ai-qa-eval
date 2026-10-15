@@ -25,14 +25,14 @@ The corpus is FDA 21 CFR Part 11 and related public FDA guidance.
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Scaffold, provider contract, budget guard, tracing, CI | **done** (merged) |
-| 1a | Corpus, ingest, chunking, local index, RAG assistant | **built and run; retrieval smoke check failed with the embedding ranking alone; hybrid ranking added, rerun pending; checkpoint in review** |
+| 1a | Corpus, ingest, chunking, local index, RAG assistant | **built and run; retrieval smoke check still fails on paraphrases with the hybrid ranking (see `reports/retrieval_smoke/`); checkpoint in review** |
 | 1b–1e | Golden dataset, metrics, judge validation, CI gate | not started |
 | 2 | Agent, adversarial cases, promptfoo/garak, findings report | not started |
 | 3 | Experiment runner, stats module, Streamlit dashboard | not started |
 
 No evaluation, judge-validation, red-team or A/B results exist yet. `reports/` is empty
-on purpose, apart from one developer-authored retrieval smoke check, which failed its
-thresholds (`reports/retrieval_smoke/`).
+on purpose, apart from two runs of one developer-authored retrieval smoke check, both
+of which failed its thresholds (`reports/retrieval_smoke/`).
 
 ## Quickstart (no API keys, no network at runtime)
 
@@ -175,7 +175,12 @@ with the embedding ranking alone **failed** both thresholds: section lookups 7/1
 ranking with a BM25 keyword ranking, and ranks chunks a question cites by section
 number first ([0006](docs/decisions/0006-rag-corpus-and-index.md#retrieval)). The
 smoke queries and thresholds are unchanged. It was designed after the failed run, so
-a pass on the same queries is not independent evidence.
+a pass on the same queries would not be independent evidence.
+
+**Hybrid run (2026-10-15):** `make retrieval-smoke` **failed**. Section lookups passed
+12/12 (1.00), but paraphrases reached only 12/16 (0.75) against a minimum of 0.8. The
+hybrid ranking fixed four paraphrase misses and lost three paraphrases that the
+embedding ranking alone had found.
 
 ## Limitations (Phase 0)
 
