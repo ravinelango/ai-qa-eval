@@ -151,15 +151,46 @@ from the human-reviewed evaluation set and is never reported as an evaluation re
 The spec has not changed since the first run (SHA-256 `b70654fd…`), and neither has
 the hit rule in `apps/rag/smoke.py`.
 
+## Held-out check and the next change (fixed before either is run)
+Approved by the owner on 2026-10-15, after the hybrid ranking failed the paraphrase
+threshold.
+- **Held-out questions:** `evals/dev_checks/retrieval_holdout.yaml`, with 6 section
+  lookups and 15 paraphrases. Claude Code drafted them from the corpus text only, and
+  no retrieval has been run on them. Their expected sections are ones the first check
+  does not name. Top-k 5, the hit rule and the 0.8 thresholds are the same as the
+  first check's. They are not human-reviewed. The owner reviews them before their
+  first run, and any change from that review is made before that run.
+- **Candidate change:** cross-encoder reranking, `retrieval.mode: hybrid_rerank`. The
+  hybrid ranking's top 50 chunks by fused score, plus any cited chunks, are scored by
+  a cross-encoder that reads the question and the chunk's embedded text together.
+  Cited chunks still rank first, then the rest by the reranker's score. The model is
+  `cross-encoder/ms-marco-MiniLM-L6-v2` (Apache-2.0) in ONNX form, pinned by
+  revision and SHA-256 like the embedder, and run on one CPU thread. A pair over 512
+  tokens loses the end of the chunk, and the number of tokens cut is recorded for each
+  chunk.
+- **Why this change:** for most of the hybrid paraphrase misses (P01, P08, P11, P14)
+  the expected chunk was in the hybrid top 30, but the two rankings agreed on other
+  chunks. A cross-encoder judges each question and passage pair directly. A larger
+  embedding model was set aside because its expected gain is small. A reweighted
+  fusion was set aside because its weight could only be chosen by fitting it to the
+  first check's queries.
+- **Decision rule:** after the owner's review, `hybrid` (the default) and
+  `hybrid_rerank` each run once on both question sets. The candidate becomes the
+  default only if it reaches every threshold on both sets. Otherwise the default stays
+  `hybrid` and the results are reported. No setting changes between or after these
+  runs without the owner's approval.
+
 ## Spending
 Phase 1a makes no API calls. The generator alias (`sonnet`) is refused without
 `--allow-paid`. No paid run is approved, including the optional live smoke.
 
 ## Open items
-- **Retrieval smoke check:** fails with both rankings, on paraphrases. The hybrid
+- **Retrieval smoke check:** fails on paraphrases with both rankings. The hybrid
   ranking fixed P09, P10, P13 and P16 but lost P01 and P14 (first by embedding, below
-  50th by keyword, so fusion pushed them down) and P08. Nothing has been changed after
-  the run; the next step is the owner's decision.
+  50th by keyword, so fusion pushed them down) and P08. With the citation fix (run
+  `20261015T010942Z-a03f3f`) only L11 changed, so paraphrases are still 12/16. The
+  next step is the held-out check and the candidate change above, after the owner
+  reviews the held-out questions.
 - **Citation rule defect:** fixed in `retrieval.version` 2 (approved 2026-10-15). A
   guidance chunk no longer matches a finer citation, so section III of the computer
   software assurance guidance no longer matches III.C.4 (L11).

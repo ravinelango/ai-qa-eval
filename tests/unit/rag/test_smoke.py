@@ -39,6 +39,28 @@ def test_shipped_spec_fixes_top_k_and_thresholds_and_is_marked_unreviewed() -> N
     assert DEFAULT_SPEC.parent.name == "dev_checks"
 
 
+HOLDOUT_SPEC = REPO_ROOT / "evals" / "dev_checks" / "retrieval_holdout.yaml"
+
+
+def test_holdout_spec_matches_the_first_checks_rules_and_names_new_sections() -> None:
+    first, _ = load_spec(DEFAULT_SPEC)
+    spec, _ = load_spec(HOLDOUT_SPEC)
+    assert (spec.top_k, spec.min_hit_rate) == (first.top_k, first.min_hit_rate)
+    assert spec.reviewed_by_human is False
+    kinds = [q.kind for q in spec.queries]
+    assert (kinds.count("section_lookup"), kinds.count("paraphrase")) == (6, 15)
+    named = {(e.doc_id, e.locator) for q in first.queries for e in q.expect}
+    assert not named & {(e.doc_id, e.locator) for q in spec.queries for e in q.expect}
+    assert not {q.query for q in first.queries} & {q.query for q in spec.queries}
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    known = {(c["doc_id"], c["locator"]) for c in manifest["chunks"]}
+    for query in spec.queries:
+        for e in query.expect:
+            assert any(d == e.doc_id and matches(d, loc, e) for d, loc in known), (
+                f"{query.id}: {e} matches no chunk"
+            )
+
+
 @pytest.mark.parametrize(
     ("locator", "expected", "hit"),
     [
