@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import http.client
 import json
+import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 import yaml
 
 from apps.rag import model_fetch
-from apps.rag.config import EmbeddingSettings, RagConfig
+from apps.rag.config import EmbeddingSettings, RagConfig, RerankerSettings
 from apps.rag.corpus import load_sources
 from apps.rag.corpus_fetch import ECFR_API, refresh
 from apps.rag.download import decode_body, https_fetch
@@ -136,6 +138,24 @@ def test_downloads_are_https_only() -> None:
         https_fetch("http://www.fda.gov/media/1/download")
 
 
+def test_a_cut_off_download_is_a_clear_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    class CutOff:
+        headers: ClassVar[dict[str, str]] = {}
+
+        def __enter__(self) -> CutOff:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            raise http.client.IncompleteRead(b"x" * 10, 5)
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: CutOff())
+    with pytest.raises(RagError, match="cut off after 10 bytes"):
+        https_fetch("https://example.invalid/model.onnx")
+
+
 def test_compressed_responses_are_decoded() -> None:
     assert decode_body(gzip.compress(b"<xml/>"), "gzip") == b"<xml/>"
     assert decode_body(b"%PDF-1.7", None) == b"%PDF-1.7"
@@ -196,3 +216,24 @@ def test_model_fetch_requires_pins_and_pin_mode_changes_nothing(tmp_path: Path) 
         "tokenizer.json": hashlib.sha256(TOKENIZER).hexdigest(),
     }
     assert not (tmp_path / "models").exists()
+
+
+def test_model_fetch_handles_the_reranker_like_the_embedder(tmp_path: Path) -> None:
+    data: dict[str, Any] = RagConfig.load().reranker.model_dump(mode="json")
+    data["local_dir"] = str(tmp_path / "reranker")
+    data["revision"] = None
+    unpinned = RerankerSettings.model_validate(data)
+    with pytest.raises(EmbedderError, match=r"reranker\.revision and both SHA-256 pins"):
+        model_fetch.fetch_pinned(unpinned, tmp_path, ScriptedFetcher({}))
+    base = f"https://huggingface.co/{unpinned.repo}/resolve/{REV}"
+    pinned = RerankerSettings.model_validate(
+        {
+            **data,
+            "revision": REV,
+            "model": {**data["model"], "sha256": hashlib.sha256(MODEL).hexdigest()},
+            "tokenizer": {**data["tokenizer"], "sha256": hashlib.sha256(TOKENIZER).hexdigest()},
+        }
+    )
+    fetch = ScriptedFetcher({f"{base}/onnx/model.onnx": MODEL, f"{base}/tokenizer.json": TOKENIZER})
+    model_fetch.fetch_pinned(pinned, tmp_path, fetch)
+    assert (tmp_path / "reranker" / "onnx" / "model.onnx").read_bytes() == MODEL

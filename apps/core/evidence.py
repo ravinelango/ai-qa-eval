@@ -36,7 +36,8 @@ from apps.core.types import CompletionRequest, CompletionResponse, FailedAttempt
 # 3: RAG fingerprints in the manifest; retrieval and answer records.
 # 4: retrieval mode, fingerprint and citations; each chunk's embedding, keyword and
 #    citation details.
-RUN_FILE_SCHEMA_VERSION = 4
+# 5: the reranker and each chunk's fused and reranker scores.
+RUN_FILE_SCHEMA_VERSION = 5
 
 
 class _Model(BaseModel):
@@ -103,7 +104,8 @@ class RetrievedChunkRecord(_Model):
     label: str
     heading_path: list[str]
     # The ranking score. Mode "dense": the cosine similarity of the query and chunk
-    # embeddings. Mode "hybrid": the fused reciprocal-rank score; chunks the question
+    # embeddings. Mode "hybrid": the fused reciprocal-rank score. Mode
+    # "hybrid_rerank": the reranker's score. In the hybrid modes, chunks the question
     # cites rank first whatever their score.
     score: float
     # Where the chunk stood in each ranking; None when it was outside that ranking's
@@ -112,6 +114,11 @@ class RetrievedChunkRecord(_Model):
     dense_rank: int | None
     lexical_score: float | None
     lexical_rank: int | None
+    # Hybrid modes: the reciprocal-rank score. hybrid_rerank: the reranker's score and
+    # the passage tokens cut so the question and chunk fit its input limit.
+    fused_score: float | None
+    rerank_score: float | None
+    rerank_truncated_tokens: int | None
     # The citation in the question that points at this chunk, if any.
     cited_as: str | None
     text: str
@@ -121,10 +128,12 @@ class RetrievedChunkRecord(_Model):
 class RetrievalRecord(_Model):
     query: str
     top_k: int
-    mode: Literal["dense", "hybrid"]
+    mode: Literal["dense", "hybrid", "hybrid_rerank"]
     retrieval_fingerprint: str
-    # Section citations recognized in the query, in order (hybrid mode).
+    # Section citations recognized in the query, in order (hybrid modes).
     citations: list[str]
+    reranker: str | None
+    reranker_fingerprint: str | None
     embedder: str
     embedding_fingerprint: str
     chunk_manifest_sha256: str

@@ -92,7 +92,7 @@ def test_the_flag_stops_the_real_model_loading(
     settings = _pinned(tmp_path, model=b"not a real model", tokenizer=tokenizer)
     # Pins and files check out, so construction gets as far as loading the model,
     # where the flag stops it, however the loader is reached.
-    with pytest.raises(EmbedderError, match="loading the real embedding model is forbidden"):
+    with pytest.raises(EmbedderError, match="real embedding or reranking model is forbidden"):
         OnnxEmbedder(settings, tmp_path)
     with pytest.raises(EmbedderError, match="forbidden"):
         load_onnx_session(tmp_path / "onnx" / "model.onnx", 1)

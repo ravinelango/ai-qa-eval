@@ -126,7 +126,7 @@ calls are made in Phase 1a.
 
 ```bash
 make corpus-refresh   # NETWORK, explicit: download sources, record SHA-256s (review the diff)
-make model-fetch      # NETWORK, explicit: pinned ONNX model + tokenizer into .cache/
+make model-fetch      # NETWORK, explicit: pinned embedder and reranker into .cache/
 make ingest           # frozen corpus -> chunk manifest -> embeddings -> local Chroma
 make ingest-check     # the committed chunk manifest is reproduced byte for byte
 make retrieval-smoke  # developer-authored retrieval check on the real index
@@ -150,16 +150,21 @@ make retrieval-smoke  # developer-authored retrieval check on the real index
   stale index.
 - **Retriever:** the embedding ranking fused with a BM25 keyword ranking, with chunks
   a question cites by section number ranked first. Each retrieved chunk records its
-  score in both rankings and the citation that matched it.
+  score in both rankings and the citation that matched it. An optional mode,
+  `hybrid_rerank`, rescores the top 50 with a pinned cross-encoder; it is the one
+  candidate change fixed in advance and is not the default.
 - **Assistant:** `answer()` returns the behavior class, answer, cited and unretrieved
   citations, retrieved chunks with scores, the prompt version and hash, and the trace
-  ID. Run files (schema 4) include fingerprints and retrieved text.
+  ID. Run files (schema 5) include fingerprints and retrieved text.
 - **Chunk manifest:** 149 chunks (max 509 of 512 tokens), committed, and reproduced
   byte for byte by `make ingest-check` and by a CI test that uses the committed,
   pinned tokenizer (`data/models/bge-small-en-v1.5/`, MIT, with its source recorded).
 - **Retrieval smoke check:** 28 developer-authored queries (12 section lookups, 16
   paraphrases). Top-k 5 and a ≥ 0.8 hit rate per query kind were fixed before any
   run. It is not an evaluation.
+- **Held-out check:** 21 more developer-drafted queries (6 lookups, 15 paraphrases) on
+  sections the first check does not name, with the same rules. Not yet run; waiting
+  for the owner's review.
 
 **How it is verified (offline):** synthetic eCFR XML and generated PDFs, the hashing
 embedder, the real Chroma client and the scripted fake provider. Every fixture is
@@ -181,6 +186,13 @@ a pass on the same queries would not be independent evidence.
 12/12 (1.00), but paraphrases reached only 12/16 (0.75) against a minimum of 0.8. The
 hybrid ranking fixed four paraphrase misses and lost three paraphrases that the
 embedding ranking alone had found.
+
+**Next (approved 2026-10-15):** a citation fix (rerun: only L11 changed, now at rank
+1), a held-out question set and one candidate change fixed in advance: cross-encoder
+reranking. After the owner reviews the held-out questions, the default and the
+candidate each run once on both sets. The candidate becomes the default only if it
+passes every threshold on both
+([0006](docs/decisions/0006-rag-corpus-and-index.md#held-out-check-and-the-next-change-fixed-before-either-is-run)).
 
 ## Limitations (Phase 0)
 

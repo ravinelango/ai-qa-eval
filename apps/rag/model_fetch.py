@@ -1,9 +1,10 @@
-"""Explicit download of the pinned embedding model files.
+"""Explicit download of the pinned local model files (the embedder and the reranker).
 
     make model-fetch                                   (download and verify pins)
     uv run python -m apps.rag.model_fetch --pin        (first time only)
+    uv run python -m apps.rag.model_fetch --only reranker
 
-Files go to `embedding.local_dir` (gitignored). Each is fetched from the exact
+Files go to each model's `local_dir` (gitignored). Each is fetched from the exact
 repository revision in config/rag.yaml and must match its SHA-256 pin, or it is
 not installed.
 
@@ -23,7 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from apps.core.redact import configure_logging
-from apps.rag.config import EmbeddingSettings, PinnedFile, RagConfig
+from apps.rag.config import PinnedFile, PinnedModelSettings, RagConfig
 from apps.rag.download import Fetcher, https_fetch
 from apps.rag.errors import EmbedderError, RagError
 
@@ -71,20 +72,20 @@ def download_files(
     return fetched
 
 
-def fetch_pinned(settings: EmbeddingSettings, root: Path, fetch: Fetcher) -> list[FetchedFile]:
+def fetch_pinned(settings: PinnedModelSettings, root: Path, fetch: Fetcher) -> list[FetchedFile]:
     if not settings.is_pinned or settings.revision is None:
         raise EmbedderError(
-            "embedding.revision and both SHA-256 pins must be set in config/rag.yaml first; "
-            "run with --pin to look them up"
+            f"{settings.section}.revision and both SHA-256 pins must be set in "
+            "config/rag.yaml first; run with --pin to look them up"
         )
-    # The tokenizer first: it alone is enough to build the chunk manifest.
+    # The tokenizer first: the embedder's alone is enough to build the chunk manifest.
     pins = [settings.tokenizer, settings.model]
     return download_files(
         settings.repo, settings.revision, [(p, settings.file_path(p, root)) for p in pins], fetch
     )
 
 
-def propose_pins(settings: EmbeddingSettings, fetch: Fetcher) -> tuple[str, list[FetchedFile]]:
+def propose_pins(settings: PinnedModelSettings, fetch: Fetcher) -> tuple[str, list[FetchedFile]]:
     revision = current_revision(settings.repo, fetch)
     unpinned = [PinnedFile(path=p.path) for p in (settings.model, settings.tokenizer)]
     with tempfile.TemporaryDirectory() as tmp:
@@ -97,19 +98,23 @@ def main(argv: list[str] | None = None, *, fetch: Fetcher = https_fetch) -> int:
     configure_logging()
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--pin", action="store_true", help="look up pins; change nothing")
+    parser.add_argument("--only", choices=["embedding", "reranker"], help="one model only")
     args = parser.parse_args(argv)
     config = RagConfig.load()
-    settings = config.embedding
+    models: list[PinnedModelSettings] = [config.embedding, config.reranker]
     try:
-        if args.pin:
-            revision, files = propose_pins(settings, fetch)
-            print(f"Record in config/rag.yaml (embedding section) for {settings.repo}:")
-            print(f"  revision: {revision}")
-            for f in files:
-                print(f"  {f.path}: sha256 {f.sha256} ({f.bytes} bytes)")
-            return 0
-        for f in fetch_pinned(settings, config.root, fetch):
-            print(f"installed {f.path} sha256={f.sha256} ({f.bytes} bytes)")
+        for settings in models:
+            if args.only not in (None, settings.section):
+                continue
+            if args.pin:
+                revision, files = propose_pins(settings, fetch)
+                print(f"Record in config/rag.yaml ({settings.section}) for {settings.repo}:")
+                print(f"  revision: {revision}")
+                for f in files:
+                    print(f"  {f.path}: sha256 {f.sha256} ({f.bytes} bytes)")
+                continue
+            for f in fetch_pinned(settings, config.root, fetch):
+                print(f"{settings.section}: installed {f.path} sha256={f.sha256} ({f.bytes} bytes)")
     except (RagError, OSError) as exc:  # OSError covers network failures (URLError)
         print(f"model fetch failed: {exc}", file=sys.stderr)
         return 1

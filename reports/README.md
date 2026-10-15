@@ -7,7 +7,8 @@ repo. No evaluation, judge-validation, red-team or A/B run has been run yet.
   real index. A plumbing check, not an evaluation result. Run `20261013T132356Z-1795fb`
   (embedding ranking alone) failed both thresholds (section lookups 7/12, paraphrases
   11/16; minimum 0.8). Run `20261015T003855Z-e3adfd` (hybrid ranking) passed section
-  lookups 12/12 but failed paraphrases 12/16.
+  lookups 12/12 but failed paraphrases 12/16. Run `20261015T010942Z-a03f3f` (hybrid,
+  after the citation fix) changed only L11, now at rank 1; paraphrases are still 12/16.
 
 Planned:
 - `eval_runs/` and `judge_validation.md` (Phase 1)

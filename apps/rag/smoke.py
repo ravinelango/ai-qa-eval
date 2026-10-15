@@ -2,8 +2,9 @@
 
     make retrieval-smoke
 
-Runs every query in evals/dev_checks/retrieval_smoke.yaml against the local index
-with the pinned embedding model (no API calls, no network) and writes a report with
+Runs every query in evals/dev_checks/retrieval_smoke.yaml (or --spec) against the
+local index with the pinned local models (no API calls, no network) and writes a
+report with
 the full retrieval for each query: chunk IDs, labels, text and scores. The queries
 are developer-authored and not human-reviewed; this is a plumbing check, not an
 evaluation. top_k and the thresholds come from the spec file, which is fixed before
@@ -30,11 +31,13 @@ from apps.core.redact import configure_logging, redact
 from apps.rag.config import RagConfig
 from apps.rag.embedding import OnnxEmbedder
 from apps.rag.errors import RagError
+from apps.rag.rerank import OnnxReranker
 from apps.rag.retrieve import Retriever, build_retriever
 
 DEFAULT_SPEC = REPO_ROOT / "evals" / "dev_checks" / "retrieval_smoke.yaml"
 # 2: retrieval records carry the ranking mode, fingerprint and per-chunk details.
-REPORT_SCHEMA_VERSION = 2
+# 3: retrieval records carry the reranker and each chunk's fused and reranker scores.
+REPORT_SCHEMA_VERSION = 3
 
 QueryKind = Literal["section_lookup", "paraphrase"]
 
@@ -118,7 +121,7 @@ class KindSummary(_Strict):
 
 
 class SmokeReport(_Strict):
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     manifest: RunManifest
     spec_path: str
     spec_sha256: str
@@ -232,14 +235,28 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--spec", type=Path, default=DEFAULT_SPEC)
     parser.add_argument("--out", type=Path, default=REPO_ROOT / "runs" / "retrieval_smoke")
+    parser.add_argument(
+        "--mode",
+        choices=["dense", "hybrid", "hybrid_rerank"],
+        help="retrieval mode for this run (default: retrieval.mode in config/rag.yaml)",
+    )
     args = parser.parse_args(argv)
     config = RagConfig.load()
+    if args.mode is not None:
+        retrieval = config.retrieval.model_copy(update={"mode": args.mode})
+        config = config.model_copy(update={"retrieval": retrieval})
     try:
         spec, spec_sha = load_spec(args.spec)
+        reranker = (
+            OnnxReranker(config.reranker, config.root)
+            if config.retrieval.mode == "hybrid_rerank"
+            else None
+        )
         retriever = build_retriever(
             config,
             OnnxEmbedder(config.embedding, config.root),
             tokenizer_fingerprint=config.embedding.tokenizer_fingerprint(),
+            reranker=reranker,
         )
         report = build_report(
             spec,
@@ -247,7 +264,10 @@ def main(argv: list[str] | None = None) -> int:
             spec_sha,
             retriever,
             synthetic=False,
-            notes="Developer-authored retrieval smoke check; not an evaluation result.",
+            notes=(
+                "Developer-authored retrieval check; not an evaluation result. "
+                f"Retrieval mode: {config.retrieval.mode}."
+            ),
         )
     except (RagError, ConfigurationError) as exc:
         print(f"retrieval smoke check could not run: {exc}", file=sys.stderr)

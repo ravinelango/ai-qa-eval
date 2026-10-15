@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -56,7 +56,12 @@ class PinnedFile(_Strict):
     local_dir: Path | None = None
 
 
-class EmbeddingSettings(_Strict):
+class PinnedModelSettings(_Strict):
+    """A local ONNX model taken from one Hugging Face repo revision, its files pinned."""
+
+    # The config/rag.yaml section, for messages.
+    section: ClassVar[str] = "model"
+
     name: str
     repo: str = Field(pattern=r"^[\w.-]+/[\w.-]+$")
     revision: str | None = Field(default=None, pattern=r"^[0-9a-f]{40}$")
@@ -64,10 +69,6 @@ class EmbeddingSettings(_Strict):
     tokenizer: PinnedFile
     local_dir: Path
     max_tokens: int = Field(gt=2)
-    dimensions: int = Field(gt=0)
-    pooling: Literal["cls"]
-    normalize: bool
-    query_instruction: str
     threads: int = Field(ge=1)
     batch_size: int = Field(ge=1)
 
@@ -85,7 +86,7 @@ class EmbeddingSettings(_Strict):
         return (directory if directory.is_absolute() else root / directory) / pin.path
 
     def fingerprint(self) -> str:
-        """Everything that determines the vectors, except where the files are stored."""
+        """Everything that determines the outputs, except where the files are stored."""
         exclude: dict[str, Any] = {
             "local_dir": True,
             "batch_size": True,
@@ -93,6 +94,15 @@ class EmbeddingSettings(_Strict):
             "tokenizer": {"local_dir"},
         }
         return canonical_sha256(self.model_dump(mode="json", exclude=exclude))
+
+
+class EmbeddingSettings(PinnedModelSettings):
+    section: ClassVar[str] = "embedding"
+
+    dimensions: int = Field(gt=0)
+    pooling: Literal["cls"]
+    normalize: bool
+    query_instruction: str
 
     def tokenizer_fingerprint(self) -> str:
         """What determines token counts, and therefore chunk boundaries."""
@@ -104,6 +114,12 @@ class EmbeddingSettings(_Strict):
                 "max_tokens": self.max_tokens,
             }
         )
+
+
+class RerankerSettings(PinnedModelSettings):
+    """A cross-encoder that scores (question, passage) pairs; used by hybrid_rerank."""
+
+    section: ClassVar[str] = "reranker"
 
 
 class IndexSettings(_Strict):
@@ -124,9 +140,9 @@ class RetrievalSettings(_Strict):
     # fusion), so records from before and after cannot pass as the same method.
     version: int = Field(ge=1)
     top_k: int = Field(ge=1, le=50)
-    mode: Literal["dense", "hybrid"]
-    # Hybrid mode: how many chunks each ranking (embedding, keyword) contributes
-    # to the fusion.
+    mode: Literal["dense", "hybrid", "hybrid_rerank"]
+    # Hybrid modes: how many chunks each ranking (embedding, keyword) contributes
+    # to the fusion, and how many of the fused chunks the reranker scores.
     candidates: int = Field(ge=1)
     bm25: Bm25Settings
     # Reciprocal rank fusion constant: a chunk scores 1 / (rrf_k + rank) per ranking.
@@ -147,6 +163,7 @@ class RagConfig(_Strict):
     corpus: CorpusSettings
     chunking: ChunkingSettings
     embedding: EmbeddingSettings
+    reranker: RerankerSettings
     index: IndexSettings
     retrieval: RetrievalSettings
     generation: GenerationSettings

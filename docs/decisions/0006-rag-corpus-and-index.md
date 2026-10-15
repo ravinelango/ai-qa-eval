@@ -72,8 +72,12 @@ lookups 12/12 passed, paraphrases 12/16 (0.75) did not.
   manifest, so repeated ingestion never duplicates a chunk. Before accepting an index,
   the retriever also checks every corpus file against its SHA-256, so an edited file
   is refused even when `sources.yaml` still describes the original.
-- **Tests:** the default suite never loads the real model. `tests/conftest.py` sets a
-  flag that makes the loader raise. Model tests run with `make test-model`.
+- **Reranker:** `cross-encoder/ms-marco-MiniLM-L6-v2` (Apache-2.0), used only by
+  `retrieval.mode: hybrid_rerank`. It is pinned like the embedder (revision
+  `233902d`, ONNX SHA-256 `5d3e70fd…`), downloaded by `make model-fetch` to `.cache/`
+  and never committed. Its `tokenizer.json` is byte-identical to the embedder's.
+- **Tests:** the default suite never loads either real model. `tests/conftest.py` sets
+  a flag that makes the loader raise. Model tests run with `make test-model`.
 
 ## Retrieval
 - **Why it changed:** the first real run used the embedding ranking alone and missed 5
@@ -83,6 +87,9 @@ lookups 12/12 passed, paraphrases 12/16 (0.75) did not.
   2026-10-15.
 - **Modes:** `retrieval.mode` in `config/rag.yaml`. `dense` is the embedding ranking
   alone, as in the first run. `hybrid`, the default, is described below.
+  `hybrid_rerank` is the candidate change described under "Held-out check" and is not
+  the default; `make retrieval-smoke SMOKE_ARGS="--mode hybrid_rerank"` selects it for
+  one run.
 - **Keyword ranking:** BM25 over the same text that is embedded (heading path, label,
   text). The text is lowercased, a possessive "'s" is dropped, and the rest is split
   into letter and digit runs. Lucene's English stop words are removed and words are
@@ -111,7 +118,9 @@ lookups 12/12 passed, paraphrases 12/16 (0.75) did not.
 - **Evidence:** each retrieval record holds the mode, a retrieval fingerprint (every
   setting except top_k, plus `retrieval.version`), the citations found, and for each
   chunk the fused score, embedding similarity and rank, BM25 score and rank, and the
-  citation that matched it. Run files are now schema 4 and smoke reports schema 2.
+  citation that matched it. With `hybrid_rerank`, records also hold the reranker's
+  name and fingerprint, and each chunk's reranker score and the passage tokens cut to
+  fit its 512-token limit. Run files are now schema 5 and smoke reports schema 3.
 - **Limits of the smoke check:** the hybrid ranking was designed after seeing which
   smoke queries failed, so a pass on the same 28 queries is not independent evidence
   that it works on other questions. The citation rule targets the section-lookup kind
@@ -136,10 +145,11 @@ lookups 12/12 passed, paraphrases 12/16 (0.75) did not.
   Unretrieved citations are flagged, never dropped.
 
 ## Evidence
-Run files are now schema version 3. The manifest records the prompt SHA-256 and the
-corpus, chunk-manifest and embedding fingerprints. Each answer record holds its full
-retrieval (IDs, labels, text, scores), so run files do not depend on traces. Traces
-record the prompt version and the retrieved chunk IDs and scores.
+Run files are now schema version 5. The manifest records the prompt SHA-256 and the
+corpus, chunk-manifest, embedding and retrieval fingerprints. Each answer record
+holds its full retrieval (IDs, labels, text, scores and ranking details), so run
+files do not depend on traces. Traces record the prompt version and the retrieved
+chunk IDs and scores.
 
 ## Retrieval smoke check
 `evals/dev_checks/retrieval_smoke.yaml` has 12 section lookups and 16 paraphrased

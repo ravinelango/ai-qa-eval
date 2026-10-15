@@ -4,10 +4,10 @@ Default runs execute unit and offline integration tests with sockets disabled
 (pytest-socket), so the suite cannot reach the network by accident. Live tests
 call a paid API and run only with --run-live; an API key alone never enables them.
 
-The default suite never loads the real embedding model. Before any test or fixture
-runs, pytest_configure sets the flag that makes the model loader raise; only
---run-model lifts it, for the tests in tests/model/ (no network; they need the
-pinned model files from `make model-fetch`).
+The default suite never loads a real local model (the embedder or the reranker).
+Before any test or fixture runs, pytest_configure sets the flag that makes the model
+loader raise; only --run-model lifts it, for the tests in tests/model/ (no network;
+they need the pinned model files from `make model-fetch`).
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--run-model",
         action="store_true",
         default=False,
-        help="run tests marked 'model' (load the pinned local embedding model; no network)",
+        help="run tests marked 'model' (load the pinned local models; no network)",
     )
 
 

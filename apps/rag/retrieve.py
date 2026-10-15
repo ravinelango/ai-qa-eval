@@ -1,6 +1,6 @@
 """Retrieve the top-k chunks for a query and describe them as saved evidence.
 
-Two modes (config/rag.yaml, retrieval.mode):
+Three modes (config/rag.yaml, retrieval.mode):
 
 - dense: the chunks whose embeddings are closest to the query's (cosine).
 - hybrid: the embedding ranking and a BM25 keyword ranking (apps.rag.lexical), each
@@ -9,9 +9,13 @@ Two modes (config/rag.yaml, retrieval.mode):
   cites by section number (apps.rag.citations) move to the front: for each citation
   in order, its best-scoring chunk, then the rest of the cited chunks by score.
   Ties are broken by embedding similarity, then by chunk ID.
+- hybrid_rerank: as hybrid, but the top `candidates` fused chunks, plus any cited
+  chunks, are scored by a cross-encoder (apps.rag.rerank) that reads the question and
+  each chunk's embedded text together, and ranked by that score. Cited chunks still
+  come first. Ties are broken by fused score, embedding similarity, then chunk ID.
 
-Each retrieved chunk records its score, where each ranking placed it and the
-citation that points at it, so a record shows why a chunk was returned.
+Each retrieved chunk records its score, where each ranking placed it, its reranker
+score and the citation that points at it, so a record shows why it was returned.
 """
 
 from __future__ import annotations
@@ -26,12 +30,13 @@ from apps.core.tracing.base import Tracer
 from apps.core.tracing.local import NoopTracer
 from apps.rag.chunking import Chunk, ChunkManifest, read_manifest
 from apps.rag.citations import Citation, parse_citations, points_at
-from apps.rag.config import RagConfig, RetrievalSettings
+from apps.rag.config import RagConfig, RetrievalSettings, canonical_sha256
 from apps.rag.corpus import load_sources, verify_snapshot
 from apps.rag.embedding import Embedder
-from apps.rag.errors import StaleIndexError
+from apps.rag.errors import RagError, StaleIndexError
 from apps.rag.index import ChunkIndex, IndexStamp
 from apps.rag.lexical import Bm25Index
+from apps.rag.rerank import Reranker
 
 
 class VectorIndex(Protocol):
@@ -50,11 +55,15 @@ class _Candidate:
     dense_rank: int | None = None
     lexical_score: float | None = None
     lexical_rank: int | None = None
+    fused_score: float | None = None
+    rerank_score: float | None = None
+    rerank_truncated_tokens: int | None = None
     cited_as: str | None = None
 
-    def order(self) -> tuple[float, float, str]:
+    def order(self) -> tuple[float, float, float, str]:
+        fused = self.fused_score if self.fused_score is not None else -math.inf
         similarity = self.dense_similarity if self.dense_similarity is not None else -math.inf
-        return (-self.score, -similarity, self.chunk_id)
+        return (-self.score, -fused, -similarity, self.chunk_id)
 
 
 class Retriever:
@@ -66,15 +75,25 @@ class Retriever:
         manifest: ChunkManifest,
         manifest_sha256: str,
         settings: RetrievalSettings,
+        reranker: Reranker | None = None,
         tracer: Tracer | None = None,
     ) -> None:
+        if settings.mode == "hybrid_rerank" and reranker is None:
+            raise RagError("retrieval.mode hybrid_rerank needs a reranker")
         self.embedder = embedder
         self.index = index
         self.manifest = manifest
         self.manifest_sha256 = manifest_sha256
         self.settings = settings
         self.top_k = settings.top_k
-        self.fingerprint = settings.fingerprint()
+        self.reranker = reranker if settings.mode == "hybrid_rerank" else None
+        self.fingerprint = (
+            settings.fingerprint()
+            if self.reranker is None
+            else canonical_sha256(
+                {"retrieval": settings.fingerprint(), "reranker": self.reranker.fingerprint}
+            )
+        )
         self.tracer = tracer or NoopTracer()
         self._chunks = {c.id: c for c in manifest.chunks}
         self._lexical = (
@@ -83,7 +102,7 @@ class Retriever:
                 k1=settings.bm25.k1,
                 b=settings.bm25.b,
             )
-            if settings.mode == "hybrid"
+            if settings.mode != "dense"
             else None
         )
         self.stamp = IndexStamp(
@@ -135,7 +154,16 @@ class Retriever:
                     cited[citation].append(chunk.id)
                     c = candidates.setdefault(chunk.id, _Candidate(chunk.id))
                     c.cited_as = c.cited_as or citation.locator
+        for c in candidates.values():
+            c.fused_score = c.score
         ranked = sorted(candidates.values(), key=_Candidate.order)
+        if self.reranker is not None:
+            pool = ranked[:depth] + [c for c in ranked[depth:] if c.cited_as is not None]
+            passages = [self._chunks[c.chunk_id].embed_text for c in pool]
+            for c, result in zip(pool, self.reranker.score(query, passages), strict=True):
+                c.score = c.rerank_score = result.score
+                c.rerank_truncated_tokens = result.truncated_tokens
+            ranked = sorted(pool, key=_Candidate.order)
         first: list[_Candidate] = []
         for citation in citations:
             best = next(
@@ -149,7 +177,8 @@ class Retriever:
     def retrieve(self, query: str, *, top_k: int | None = None) -> RetrievalRecord:
         k = top_k or self.top_k
         mode = self.settings.mode
-        lexical = self._lexical  # built only in hybrid mode
+        lexical = self._lexical  # built only in the hybrid modes
+        reranker = self.reranker
         with self.tracer.observe(
             "rag.retrieve",
             kind="retriever",
@@ -157,6 +186,7 @@ class Retriever:
             metadata={
                 "mode": mode,
                 "retrieval_fingerprint": self.fingerprint,
+                "reranker": reranker.name if reranker else None,
                 "embedder": self.embedder.name,
                 "embedding_fingerprint": self.embedder.fingerprint,
                 "chunk_manifest_sha256": self.manifest_sha256,
@@ -189,6 +219,9 @@ class Retriever:
                         dense_rank=candidate.dense_rank,
                         lexical_score=candidate.lexical_score,
                         lexical_rank=candidate.lexical_rank,
+                        fused_score=candidate.fused_score,
+                        rerank_score=candidate.rerank_score,
+                        rerank_truncated_tokens=candidate.rerank_truncated_tokens,
                         cited_as=candidate.cited_as,
                         text=chunk.text,
                         text_sha256=chunk.text_sha256,
@@ -207,6 +240,8 @@ class Retriever:
             mode=mode,
             retrieval_fingerprint=self.fingerprint,
             citations=[c.locator for c in citations],
+            reranker=reranker.name if reranker else None,
+            reranker_fingerprint=reranker.fingerprint if reranker else None,
             embedder=self.embedder.name,
             embedding_fingerprint=self.embedder.fingerprint,
             chunk_manifest_sha256=self.manifest_sha256,
@@ -247,6 +282,7 @@ def build_retriever(
     embedder: Embedder,
     *,
     tokenizer_fingerprint: str,
+    reranker: Reranker | None = None,
     tracer: Tracer | None = None,
 ) -> Retriever:
     manifest, sha = read_manifest(config.resolve(config.chunking.manifest))
@@ -258,5 +294,6 @@ def build_retriever(
         manifest=manifest,
         manifest_sha256=sha,
         settings=config.retrieval,
+        reranker=reranker,
         tracer=tracer,
     )

@@ -11,8 +11,9 @@ import pytest
 
 from apps.rag.config import RagConfig, RetrievalSettings
 from apps.rag.embedding import HashingEmbedder
-from apps.rag.errors import StaleIndexError
+from apps.rag.errors import RagError, StaleIndexError
 from apps.rag.index import IndexStamp
+from apps.rag.rerank import RerankScore
 from apps.rag.retrieve import Retriever, VectorIndex
 from tests.rag_helpers import InMemoryIndex, part99_manifest
 
@@ -137,3 +138,86 @@ def test_an_index_returning_unknown_chunks_is_refused_even_outside_the_top_k() -
     retriever = _retriever(FixedIndex([*IDS[:3], "synthetic-part99/99.999"]))
     with pytest.raises(StaleIndexError, match="manifest lacks"):
         retriever.retrieve("loss management", top_k=1)
+
+
+CHUNKS = {c.id: c for c in MANIFEST.chunks}
+
+
+class ScriptedReranker:
+    """Scores given per chunk (0 for the rest); records the passages it was shown."""
+
+    name = "scripted-reranker"
+
+    def __init__(
+        self, scores: dict[str, float], *, fingerprint: str = "r" * 64, cut: int = 0
+    ) -> None:
+        self._by_text = {CHUNKS[cid].embed_text: s for cid, s in scores.items()}
+        self.fingerprint = fingerprint
+        self.cut = cut
+        self.shown: list[list[str]] = []
+
+    def score(self, query: str, passages: Sequence[str]) -> list[RerankScore]:
+        self.shown.append(list(passages))
+        return [RerankScore(self._by_text.get(p, 0.0), self.cut) for p in passages]
+
+
+def _reranking(index: VectorIndex, reranker: ScriptedReranker, **changes: Any) -> Retriever:
+    return Retriever(
+        embedder=EMBEDDER,
+        index=index,
+        manifest=MANIFEST,
+        manifest_sha256="m" * 64,
+        settings=_settings(mode="hybrid_rerank", **changes),
+        reranker=reranker,
+    )
+
+
+def test_rerank_mode_orders_the_fused_pool_by_reranker_score() -> None:
+    reranker = ScriptedReranker({_id("99.10(a)"): 3.0, _id("99.300(e)"): 2.0}, cut=7)
+    record = _reranking(FixedIndex(IDS), reranker).retrieve("loss management", top_k=3)
+    assert (record.mode, record.reranker, record.reranker_fingerprint) == (
+        "hybrid_rerank",
+        "scripted-reranker",
+        "r" * 64,
+    )
+    first, second, third = record.results
+    assert (first.chunk_id, first.score, first.rerank_score) == (_id("99.10(a)"), 3.0, 3.0)
+    assert first.fused_score is not None
+    assert math.isclose(first.fused_score, 1 / (60 + 6))  # 6th by embedding, no keyword
+    assert second.chunk_id == _id("99.300(e)")
+    # Equal reranker scores fall back to the fused order: 99.300(c) was fused first.
+    assert (third.chunk_id, third.rerank_score) == (_id("99.300(c)"), 0.0)
+    assert all(r.rerank_truncated_tokens == 7 for r in record.results)
+
+
+def test_the_reranker_sees_the_top_fused_chunks_plus_cited_ones_and_citations_win() -> None:
+    reranker = ScriptedReranker({IDS[0]: 5.0, _id("99.300(c)"): 4.0})
+    retriever = _reranking(FixedIndex(IDS), reranker, candidates=2)
+    record = retriever.retrieve("loss management rule under 99.30", top_k=5)
+    # Fused top 2: the embedding's first chunk and the keyword ranking's first. The
+    # cited 99.30 is below them, so it joins the pool on its own.
+    assert reranker.shown == [
+        [CHUNKS[cid].embed_text for cid in (IDS[0], _id("99.300(c)"), _id("99.30"))]
+    ]
+    assert [r.chunk_id for r in record.results] == [_id("99.30"), IDS[0], _id("99.300(c)")]
+    assert record.results[0].cited_as == "99.30"
+
+
+def test_rerank_mode_needs_a_reranker_and_its_fingerprint_counts() -> None:
+    with pytest.raises(RagError, match="needs a reranker"):
+        _retriever(FixedIndex(IDS), mode="hybrid_rerank")
+    one = _reranking(FixedIndex(IDS), ScriptedReranker({}, fingerprint="1" * 64))
+    other = _reranking(FixedIndex(IDS), ScriptedReranker({}, fingerprint="2" * 64))
+    assert len({one.fingerprint, other.fingerprint, SHIPPED.fingerprint()}) == 3
+    # A reranker passed to a mode that does not use it is ignored, not recorded.
+    hybrid = Retriever(
+        embedder=EMBEDDER,
+        index=FixedIndex(IDS),
+        manifest=MANIFEST,
+        manifest_sha256="m" * 64,
+        settings=SHIPPED,
+        reranker=ScriptedReranker({}),
+    )
+    record = hybrid.retrieve("loss management")
+    assert (hybrid.fingerprint, record.reranker) == (SHIPPED.fingerprint(), None)
+    assert all(r.rerank_score is None and r.fused_score == r.score for r in record.results)

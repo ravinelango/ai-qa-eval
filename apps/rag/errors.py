@@ -21,8 +21,8 @@ class ChunkingError(RagError):
 
 
 class EmbedderError(RagError):
-    """The embedding model is unpinned, missing, does not match its pins, or got input
-    over its token limit."""
+    """A local model (the embedder or the reranker) is unpinned, missing, does not match
+    its pins, or got input it cannot take without truncation."""
 
 
 class StaleIndexError(RagError):

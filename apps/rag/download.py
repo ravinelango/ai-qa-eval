@@ -1,4 +1,4 @@
-"""HTTPS downloads for the two explicit refresh commands (corpus, embedding model).
+"""HTTPS downloads for the two explicit refresh commands (corpus, local models).
 
 Nothing else in the pipeline touches the network. Callers take a `Fetcher` so
 tests can supply responses without any network access.
@@ -7,6 +7,7 @@ tests can supply responses without any network access.
 from __future__ import annotations
 
 import gzip
+import http.client
 import urllib.request
 from collections.abc import Callable
 
@@ -30,7 +31,13 @@ def https_fetch(url: str, *, timeout_s: float = 120.0) -> bytes:
     headers = {"User-Agent": USER_AGENT, "Accept-Encoding": "gzip"}
     request = urllib.request.Request(url, headers=headers)  # noqa: S310
     with urllib.request.urlopen(request, timeout=timeout_s) as response:  # noqa: S310
-        body: bytes = response.read()
+        try:
+            body: bytes = response.read()
+        except http.client.IncompleteRead as exc:
+            raise RagError(
+                f"the download of {url} was cut off after {len(exc.partial)} bytes; "
+                "nothing was installed, try again"
+            ) from exc
         encoding = response.headers.get("Content-Encoding")
     return decode_body(body, encoding)
 

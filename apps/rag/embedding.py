@@ -24,7 +24,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
-from apps.rag.config import EmbeddingSettings, canonical_sha256, file_sha256
+from apps.rag.config import EmbeddingSettings, PinnedModelSettings, canonical_sha256, file_sha256
 from apps.rag.errors import EmbedderError
 
 if TYPE_CHECKING:
@@ -134,10 +134,11 @@ def load_tokenizer(path: Path) -> Tokenizer:
 
 
 def load_onnx_session(path: Path, threads: int) -> Any:
-    """Load the ONNX model: the only place the real model is ever loaded."""
+    """Load an ONNX model: the only place a real model (embedder or reranker) is loaded."""
     if os.environ.get(FORBID_MODEL_LOAD_ENV) == "1":
         raise EmbedderError(
-            f"loading the real embedding model is forbidden ({FORBID_MODEL_LOAD_ENV}=1)"
+            f"loading the real embedding or reranking model is forbidden "
+            f"({FORBID_MODEL_LOAD_ENV}=1)"
         )
     import onnxruntime as ort
 
@@ -148,12 +149,13 @@ def load_onnx_session(path: Path, threads: int) -> Any:
     return ort.InferenceSession(str(path), sess_options=options, providers=["CPUExecutionProvider"])
 
 
-def pinned_path(settings: EmbeddingSettings, root: Path, which: str) -> Path:
+def pinned_path(settings: PinnedModelSettings, root: Path, which: str) -> Path:
     """Path of a pinned model file, after checking it matches its SHA-256 pin."""
     if not settings.is_pinned:
+        section = settings.section
         raise EmbedderError(
-            f"{settings.name} is not pinned: set embedding.revision and the SHA-256 of "
-            "embedding.model and embedding.tokenizer in config/rag.yaml (make model-fetch)"
+            f"{settings.name} is not pinned: set {section}.revision and the SHA-256 of "
+            f"{section}.model and {section}.tokenizer in config/rag.yaml (make model-fetch)"
         )
     pin = settings.model if which == "model" else settings.tokenizer
     path = settings.file_path(pin, root)

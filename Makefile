@@ -62,14 +62,14 @@ clean: ## Remove caches, build output and local demo runs
 .PHONY: corpus-refresh model-fetch ingest ingest-check retrieval-smoke test-model
 corpus-refresh: ## NETWORK: re-download corpus sources into data/corpus (review the diff)
 	$(UV) run python -m apps.rag.corpus_fetch
-model-fetch: ## NETWORK: download the pinned embedding model into .cache/ (never committed)
+model-fetch: ## NETWORK: download the pinned embedder and reranker into .cache/ (never committed)
 	$(UV) run python -m apps.rag.model_fetch
 ingest: ## Frozen corpus -> chunk manifest -> embeddings -> local Chroma (no network)
 	$(UV) run python -m apps.rag.ingest
 ingest-check: ## Check the saved chunk manifest is reproduced byte for byte
 	$(UV) run python -m apps.rag.ingest --check
-retrieval-smoke: ## Developer-authored retrieval check on the real index (not an eval)
-	$(UV) run python -m apps.rag.smoke
+retrieval-smoke: ## Developer-authored retrieval check on the real index (not an eval); SMOKE_ARGS="--mode ... --spec ..."
+	$(UV) run python -m apps.rag.smoke $(SMOKE_ARGS)
 test-model: ## Tests that load the pinned local embedding model (no network)
 	$(UV) run pytest tests/model --run-model
 
