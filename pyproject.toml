@@ -3,15 +3,23 @@ name = "ai-qa-eval"
 version = "0.1.0"
 description = "LLM quality engineering portfolio: RAG eval harness, agent red-team suite, model-upgrade dashboard"
 readme = "README.md"
+authors = [{ name = "Ravin Elango" }]
 requires-python = ">=3.12,<3.13"
 # Exact pins. Each later phase adds its own dependencies here or in a group.
 dependencies = [
     "anthropic==1.13.0",
+    "chromadb==1.5.9",
+    "defusedxml==0.7.1",
     "httpx2==2.13.1",
     "langfuse==4.17.0",
+    "numpy==2.5.3",
+    "onnxruntime==1.30.0",
     "pydantic==2.14.1",
     "pydantic-settings==2.15.0",
+    "pypdf==6.19.0",
     "pyyaml==6.0.3",
+    "snowballstemmer==3.1.1",
+    "tokenizers==0.23.2",
 ]
 
 [dependency-groups]
@@ -23,6 +31,7 @@ dev = [
     "pytest-cov==7.1.0",
     "pytest-socket==0.8.1",
     "ruff==0.17.0",
+    "types-defusedxml==0.7.0.20260504",
     "types-PyYAML==6.0.12.20260906",
 ]
 
@@ -60,6 +69,18 @@ plugins = ["pydantic.mypy"]
 module = ["langfuse", "langfuse.*"]
 follow_untyped_imports = true
 
+[[tool.mypy.overrides]]
+# onnxruntime ships no type information; it is used in one function
+# (apps.rag.embedding.load_onnx_session).
+module = ["onnxruntime", "onnxruntime.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# snowballstemmer ships no type information; it is used in one class
+# (apps.rag.lexical.Analyzer).
+module = ["snowballstemmer", "snowballstemmer.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # --disable-socket proves the default suite needs no network. Live tests opt out explicitly.
@@ -68,5 +89,6 @@ markers = [
     "unit: fast, isolated, no I/O beyond tmp_path",
     "integration: exercises real third-party SDKs offline (mock transports, in-memory exporters)",
     "live: calls a paid external API; runs only with --run-live",
+    "model: loads the pinned local embedding model; runs only with --run-model",
 ]
 filterwarnings = ["error"]

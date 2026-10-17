@@ -1,0 +1,8 @@
+# gitleaks configuration: the default rules, plus one narrow exception.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "SHA-256 fingerprint of the public tokenizer config in the chunk manifest (not a secret)"
+regexTarget = "line"
+regexes = ['''^\s*"tokenizer_fingerprint": "[0-9a-f]{64}",?$''']

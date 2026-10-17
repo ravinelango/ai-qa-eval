@@ -6,8 +6,11 @@ repos:
     hooks:
       - id: check-yaml
       - id: check-toml
+      # Upstream files are kept byte-identical to their recorded SHA-256.
       - id: end-of-file-fixer
+        exclude: &upstream ^(data/models/.*/(tokenizer\.json|LICENSE)|data/corpus/.*\.(xml|pdf))$
       - id: trailing-whitespace
+        exclude: *upstream
       - id: detect-private-key
       - id: check-added-large-files
         args: ["--maxkb=1024"]

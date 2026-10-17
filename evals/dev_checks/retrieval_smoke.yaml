@@ -1,0 +1,147 @@
+# DEVELOPER-AUTHORED RETRIEVAL SMOKE CHECK. NOT HUMAN-REVIEWED.
+#
+# This is a plumbing check for Phase 1a: does the real index return the expected
+# section in the top k for plain questions? It is not part of the evaluation set.
+# The human-reviewed golden dataset lives apart from this file (evals/golden/,
+# Phase 1b), and results from this check are never reported as evaluation results.
+#
+# top_k and the pass thresholds below were fixed before the first run; git history
+# shows that. A query passes when any of its top-k chunks matches an expectation:
+# same doc_id, and a locator equal to the expected one or nested under it
+# ("11.50" matches "11.50(a)" and "11.50-intro"; "11.10(e)" matches "11.10(e)#2";
+# "III.C" matches "III.C.2"; "scope" does not match "scope-of-application").
+#
+# The guidance queries (L11-L12, P11-P16) were added on 2026-10-12, after the guidance
+# text was frozen and before the check had ever been run. top_k and the thresholds
+# did not change.
+purpose: Phase 1a retrieval smoke check (plumbing; not an evaluation)
+authored_by: Ravin Elango (owner); drafted by Claude Code, not human-reviewed, 2026-10-12
+reviewed_by_human: false
+top_k: 5
+# Minimum share of queries of each kind whose expectation appears in the top k.
+# The check passes only if every kind meets its threshold.
+min_hit_rate:
+  section_lookup: 0.8
+  paraphrase: 0.8
+
+queries:
+  # Section lookups: the question cites the section or paragraph.
+  - id: L01
+    kind: section_lookup
+    query: What does 21 CFR 11.10(e) require?
+    expect: [{doc_id: 21cfr11, locator: 11.10(e)}]
+  - id: L02
+    kind: section_lookup
+    query: Summarize 21 CFR 11.50 on signature manifestations.
+    expect: [{doc_id: 21cfr11, locator: "11.50"}]
+  - id: L03
+    kind: section_lookup
+    query: What controls does 21 CFR 11.300 require for identification codes and passwords?
+    expect: [{doc_id: 21cfr11, locator: "11.300"}]
+  - id: L04
+    kind: section_lookup
+    query: What does section 11.30 require for open systems?
+    expect: [{doc_id: 21cfr11, locator: "11.30"}]
+  - id: L05
+    kind: section_lookup
+    query: What does 21 CFR 11.70 say about linking signatures to records?
+    expect: [{doc_id: 21cfr11, locator: "11.70"}]
+  - id: L06
+    kind: section_lookup
+    query: Under 11.100(c), what must persons using electronic signatures certify?
+    expect: [{doc_id: 21cfr11, locator: 11.100(c)}]
+  - id: L07
+    kind: section_lookup
+    query: What does 11.200(a) require of electronic signatures that are not based on biometrics?
+    expect: [{doc_id: 21cfr11, locator: 11.200(a)}]
+  - id: L08
+    kind: section_lookup
+    query: How does 21 CFR 11.3 define a closed system?
+    expect: [{doc_id: 21cfr11, locator: 11.3(b)}]
+  - id: L09
+    kind: section_lookup
+    query: What is the scope of Part 11 as stated in section 11.1?
+    expect: [{doc_id: 21cfr11, locator: "11.1"}]
+  - id: L10
+    kind: section_lookup
+    query: What does 21 CFR 11.10(a) say about validation?
+    expect: [{doc_id: 21cfr11, locator: 11.10(a)}]
+  - id: L11
+    kind: section_lookup
+    query: What does section III.C.4 of FDA's Part 11 scope and application guidance say?
+    expect: [{doc_id: fda-part11-scope-2003, locator: III.C.4}]
+  - id: L12
+    kind: section_lookup
+    query: In FDA's data integrity questions and answers, what is the answer to question 8 on how often audit trails should be reviewed?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.8}]
+
+  # Paraphrases: ordinary questions with no citation and no heading wording.
+  - id: P01
+    kind: paraphrase
+    query: Do we have to keep a log of every change someone makes to a record, showing when it happened and what the earlier value was?
+    expect: [{doc_id: 21cfr11, locator: 11.10(e)}]
+  - id: P02
+    kind: paraphrase
+    query: What information has to appear next to an electronic signature when the signed record is displayed or printed?
+    expect: [{doc_id: 21cfr11, locator: "11.50"}]
+  - id: P03
+    kind: paraphrase
+    query: Can two employees share one login and password to sign records?
+    expect:
+      - {doc_id: 21cfr11, locator: 11.100(a)}
+      - {doc_id: 21cfr11, locator: 11.300(a)}
+  - id: P04
+    kind: paraphrase
+    query: What should happen when an employee loses the security token they use to sign records?
+    expect: [{doc_id: 21cfr11, locator: 11.300(c)}]
+  - id: P05
+    kind: paraphrase
+    query: Before using e-signatures, does a company have to tell FDA that they are as binding as handwritten ones?
+    expect: [{doc_id: 21cfr11, locator: 11.100(c)}]
+  - id: P06
+    kind: paraphrase
+    query: How do we stop someone from copying an electronic signature onto a different record?
+    expect: [{doc_id: 21cfr11, locator: "11.70"}]
+  - id: P07
+    kind: paraphrase
+    query: Do the people who build and maintain our record-keeping software need suitable training and experience?
+    expect: [{doc_id: 21cfr11, locator: 11.10(i)}]
+  - id: P08
+    kind: paraphrase
+    query: If records travel over the internet to a system we do not control, what extra protections are expected?
+    expect: [{doc_id: 21cfr11, locator: "11.30"}]
+  - id: P09
+    kind: paraphrase
+    query: When someone signs several times during one continuous session, what do they have to enter for the later signatures?
+    expect: [{doc_id: 21cfr11, locator: 11.200(a)}]
+  - id: P10
+    kind: paraphrase
+    query: Must the system be able to produce copies of records that FDA inspectors can read and review?
+    expect: [{doc_id: 21cfr11, locator: 11.10(b)}]
+  - id: P11
+    kind: paraphrase
+    query: Will FDA take action against us for missing computer-generated change histories while it re-examines Part 11?
+    expect: [{doc_id: fda-part11-scope-2003, locator: III.C.2}]
+  - id: P12
+    kind: paraphrase
+    query: Our computer system was already running before August 1997. Do the Part 11 rules apply to it?
+    expect: [{doc_id: fda-part11-scope-2003, locator: III.C.3}]
+  - id: P13
+    kind: paraphrase
+    query: In a drug plant, which staff should look over the history of changes made to lab data?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.7}]
+  - id: P14
+    kind: paraphrase
+    query: Can several analysts use the same username on a lab instrument's software?
+    expect:
+      - {doc_id: fda-data-integrity-2018, locator: III.5}
+      - {doc_id: 21cfr11, locator: 11.100(a)}
+      - {doc_id: 21cfr11, locator: 11.300(a)}
+  - id: P15
+    kind: paraphrase
+    query: How do we decide how much testing a production software feature needs, based on whether its failure could harm patients?
+    expect: [{doc_id: fda-csa-2026, locator: V.A.2}]
+  - id: P16
+    kind: paraphrase
+    query: What should the documentation of our software testing for manufacturing systems contain?
+    expect: [{doc_id: fda-csa-2026, locator: V.A.6}]
