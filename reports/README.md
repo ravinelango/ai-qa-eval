@@ -12,6 +12,8 @@ repo. No evaluation, judge-validation, red-team or A/B run has been run yet.
   `comparison-20261015.md`: hybrid and hybrid_rerank, once each on the original and
   the owner-approved held-out set. Both pass the held-out set and fail the original
   set's paraphrases (12/16); the default stays hybrid.
+  `findings-20261017.md`: the owner's review of the held-out set, why the four
+  original paraphrases miss, and cautions for Phase 1b. No retrieval was run for it.
 
 Planned:
 - `eval_runs/` and `judge_validation.md` (Phase 1)

@@ -25,7 +25,7 @@ The corpus is FDA 21 CFR Part 11 and related public FDA guidance.
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Scaffold, provider contract, budget guard, tracing, CI | **done** (merged) |
-| 1a | Corpus, ingest, chunking, local index, RAG assistant | **built and run; the held-out retrieval check passes, the original smoke check still fails on 4 paraphrases (see `reports/retrieval_smoke/`); checkpoint in review** |
+| 1a | Corpus, ingest, chunking, local index, RAG assistant | **built and run; retrieval plumbing checks recorded in `reports/retrieval_smoke/` (the original smoke check still fails); checkpoint in review** |
 | 1b–1e | Golden dataset, metrics, judge validation, CI gate | not started |
 | 2 | Agent, adversarial cases, promptfoo/garak, findings report | not started |
 | 3 | Experiment runner, stats module, Streamlit dashboard | not started |
@@ -194,11 +194,12 @@ candidate each run once on both sets. The candidate becomes the default only if 
 passes every threshold on both
 ([0006](docs/decisions/0006-rag-corpus-and-index.md#held-out-check-and-the-next-change-fixed-before-either-is-run)).
 
-**Comparison (2026-10-15):** on the held-out set both rankings pass (hybrid 13/15
-paraphrases, reranking 15/15). On the original set both fail at 12/16, on the same
-four paraphrases (P01, P08, P11, P14). By the rule, reranking does not become the
-default; hybrid stays
-([comparison](reports/retrieval_smoke/comparison-20261015.md)).
+**Comparison (2026-10-15):** both rankings ran once on both question sets. The
+original smoke check still fails for both, on the same four paraphrases. By the rule
+fixed in advance, reranking did not become the default. These are plumbing checks, not
+evaluation results; the counts are in the
+[comparison report](reports/retrieval_smoke/comparison-20261015.md) and the
+[findings note](reports/retrieval_smoke/findings-20261017.md).
 
 ## Limitations (Phase 0)
 
