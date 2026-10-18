@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -72,8 +73,16 @@ def test_demo_trace_file_matches_run_file(tmp_path: Path) -> None:
 
 
 def test_demo_does_not_load_embedding_models(tmp_path: Path) -> None:
-    run_demo(tmp_path)
-    assert not [m for m in EMBEDDING_MODULES if m in sys.modules]
+    # A fresh interpreter: other tests in this process import chromadb on purpose.
+    code = (
+        "import sys; from pathlib import Path; from apps.core.demo import run_demo; "
+        f"run_demo(Path({str(tmp_path)!r})); "
+        f"print(','.join(m for m in {EMBEDDING_MODULES!r} if m in sys.modules))"
+    )
+    result = subprocess.run(  # noqa: S603 - fixed argv
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    assert result.stdout.strip() == ""
 
 
 def test_error_record_keeps_charge_status_and_no_usage() -> None:

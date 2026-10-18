@@ -1,0 +1,106 @@
+# Corpus manifest (docs/decisions/0006-rag-corpus-and-index.md). SOURCES.md is
+# rendered from this file. Ingestion reads only the files listed here and refuses
+# any whose SHA-256 differs. `make corpus-refresh` re-downloads from source_url and
+# rewrites the snapshot fields (retrieved, sha256, bytes, eCFR dates).
+schema_version: 1
+documents:
+- doc_id: 21cfr11
+  title: 21 CFR Part 11 — Electronic Records; Electronic Signatures
+  kind: regulation
+  issuer: U.S. Food and Drug Administration (codified at 21 CFR Part 11)
+  domain: Records in electronic form created, modified, maintained, archived, retrieved or transmitted
+    under any records requirement in FDA regulations, and electronic records submitted to FDA under the
+    FD&C Act and the PHS Act; not paper records transmitted electronically (§ 11.1(b))
+  status: final
+  version_label: eCFR point-in-time text (as-of date and latest amendment below)
+  format: ecfr-xml
+  file: 21cfr11.xml
+  source_url: https://www.ecfr.gov/api/versioner/v1/full/2026-10-08/title-21.xml?part=11
+  landing_url: https://www.ecfr.gov/current/title-21/chapter-I/subchapter-A/part-11
+  reuse_notice: U.S. Government work, not subject to copyright in the United States (17 U.S.C. 105). The
+    eCFR is an editorial compilation of the CFR, not its official legal edition. The eCFR legal-status
+    page could not be opened from the build environment on 2026-10-12 (it redirected to a bot check at
+    unblock.federalregister.gov, which the network policy refuses), so that page was not re-read.
+  ecfr:
+    title: 21
+    part: '11'
+    as_of: '2026-10-08'
+    latest_amendment: '2023-03-02'
+  retrieved: '2026-10-12'
+  sha256: 7fff122daf0a667920b359ce857373b6cf503e36c5b6d96b5537bac925ae9197
+  bytes: 20474
+- doc_id: fda-part11-scope-2003
+  title: Part 11, Electronic Records; Electronic Signatures — Scope and Application (Guidance for Industry)
+  kind: guidance
+  issuer: FDA (CDER, CBER, CDRH, CFSAN, CVM and ORA)
+  domain: Part 11 records and signatures in all FDA program areas; how FDA interprets the scope of part
+    11 and where it exercises enforcement discretion
+  status: final
+  version_date: 2003-08
+  version_label: Final guidance, August 2003 (docket FDA-2003-D-0143)
+  format: pdf
+  file: fda-part11-scope-2003.pdf
+  source_url: https://www.fda.gov/media/75414/download
+  landing_url: https://www.fda.gov/regulatory-information/search-fda-guidance-documents/part-11-electronic-records-electronic-signatures-scope-and-application
+  reuse_notice: 'FDA website policies, checked 2026-10-12 (https://www.fda.gov/about-fda/about-website/website-policies):
+    "Unless otherwise noted, the contents of the FDA website (www.fda.gov) — both text and graphics —
+    are not copyrighted. They are in the public domain and may be republished, reprinted and otherwise
+    used freely by anyone without the need to obtain permission from FDA. Credit to the U.S. Food and
+    Drug Administration as the source is appreciated but not required."'
+  pdf:
+    toc_pages:
+    - 3
+    skip_pages: []
+    line_numbers_from_page: 4
+  retrieved: '2026-10-12'
+  sha256: 306013031df65004566799023444b3fd66d17dca72eea4c7eb5bacfd4a697ac5
+  bytes: 44957
+- doc_id: fda-data-integrity-2018
+  title: Data Integrity and Compliance With Drug CGMP — Questions and Answers (Guidance for Industry)
+  kind: guidance
+  issuer: FDA (CDER, CBER and CVM)
+  domain: Current good manufacturing practice records for drugs, including biologics (21 CFR parts 210,
+    211 and 212)
+  status: final
+  version_date: 2018-12
+  version_label: Final guidance, December 2018 (docket FDA-2018-D-3984)
+  format: pdf
+  file: fda-data-integrity-2018.pdf
+  source_url: https://www.fda.gov/media/119267/download
+  landing_url: https://www.fda.gov/regulatory-information/search-fda-guidance-documents/data-integrity-and-compliance-drug-cgmp-questions-and-answers
+  reuse_notice: 'FDA website policies, checked 2026-10-12 (https://www.fda.gov/about-fda/about-website/website-policies):
+    the contents of www.fda.gov are not copyrighted, are in the public domain and may be republished freely;
+    credit to FDA is appreciated but not required.'
+  pdf:
+    toc_pages:
+    - 3
+    - 4
+    skip_pages: []
+  retrieved: '2026-10-12'
+  sha256: 1b5074c592ed75035022566b6e151c219b5b6349414beaf4229e73117a0997c6
+  bytes: 130160
+- doc_id: fda-csa-2026
+  title: Computer Software Assurance for Production and Quality Management System Software (Guidance for
+    Industry and FDA Staff)
+  kind: guidance
+  issuer: FDA (CDRH and CBER)
+  domain: Computers and automated data processing systems used in medical device production or the quality
+    management system (21 CFR Part 820)
+  status: final
+  version_date: '2026-02-03'
+  version_label: Final guidance issued February 3, 2026, superseding the September 24, 2025 version (docket
+    FDA-2022-D-0795)
+  format: pdf
+  file: fda-csa-2026.pdf
+  source_url: https://www.fda.gov/media/188844/download
+  landing_url: https://www.fda.gov/regulatory-information/search-fda-guidance-documents/computer-software-assurance-production-and-quality-management-system-software
+  reuse_notice: 'FDA website policies, checked 2026-10-12 (https://www.fda.gov/about-fda/about-website/website-policies):
+    the contents of www.fda.gov are not copyrighted, are in the public domain and may be republished freely;
+    credit to FDA is appreciated but not required.'
+  pdf:
+    toc_pages:
+    - 3
+    skip_pages: []
+  retrieved: '2026-10-12'
+  sha256: 11e2e21f5eb226b56a578da44e732965a2318e9b983422c6a58e51bc7b2e223a
+  bytes: 752262

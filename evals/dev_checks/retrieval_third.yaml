@@ -1,0 +1,121 @@
+# DEVELOPER-DRAFTED THIRD RETRIEVAL CHECK. NOT HUMAN-REVIEWED. NOT YET RUN.
+#
+# A third plumbing check for Phase 1a, written on 2026-10-18 after the comparison of
+# 2026-10-15. Both earlier sets (retrieval_smoke.yaml, retrieval_holdout.yaml) have
+# now been used, and the candidate change in docs/decisions/0006-rag-corpus-and-index.md
+# ("Third check and the next change") was designed with the four original
+# paraphrases that both rankings miss in view. So it is judged on these questions,
+# which were written before it ran. Like the other sets, this is not part of the
+# evaluation set, and its results are never evaluation results or headline numbers.
+#
+# How it was written: from the text of the frozen corpus only. No retrieval of any
+# kind has been run on these questions, and none will be until the owner has
+# reviewed them. No expected section is one the earlier sets name, or one nested
+# under or over a section they name. Where more than one section plainly answers a
+# question, each is listed.
+#
+# The paraphrases follow the owner's note of 2026-10-17: they are phrased the way
+# staff ask, with abbreviations, lowercase and no regulatory terms, rather than
+# following the source wording.
+#
+# top_k, the hit rule and the thresholds are the same as the earlier sets' and were
+# fixed with the questions, before any run.
+purpose: Phase 1a third retrieval check (plumbing; not an evaluation)
+authored_by: Ravin Elango (owner); drafted by Claude Code, not human-reviewed, 2026-10-18
+reviewed_by_human: false
+top_k: 5
+min_hit_rate:
+  section_lookup: 0.8
+  paraphrase: 0.8
+
+queries:
+  # Section lookups: forms the earlier sets do not use ("sec.", lowercase "part 11",
+  # a citation at the end of the question).
+  - id: TL01
+    kind: section_lookup
+    query: what's in sec. 11.10(d)?
+    expect: [{doc_id: 21cfr11, locator: 11.10(d)}]
+  - id: TL02
+    kind: section_lookup
+    query: Which definitions apply to part 11 according to 21 CFR 11.3(a)?
+    expect: [{doc_id: 21cfr11, locator: 11.3(a)}]
+  - id: TL03
+    kind: section_lookup
+    query: summarise the overall approach in the 2003 part 11 guidance, section III.A
+    expect: [{doc_id: fda-part11-scope-2003, locator: III.A}]
+  - id: TL04
+    kind: section_lookup
+    query: How does the data integrity Q&A define data integrity in III.1.a?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.1.a}]
+  - id: TL05
+    kind: section_lookup
+    query: what does the CSA guidance say about part 11 in V.B
+    expect: [{doc_id: fda-csa-2026, locator: V.B}]
+
+  # Paraphrases: how staff would ask, with no citation.
+  - id: TP01
+    kind: paraphrase
+    query: should the system check that data is really coming from the right terminal or instrument?
+    expect: [{doc_id: 21cfr11, locator: 11.10(h)}]
+  - id: TP02
+    kind: paraphrase
+    query: we only keep these records in house and never send them to FDA, can we go fully paperless?
+    expect: [{doc_id: 21cfr11, locator: 11.2(a)}]
+  - id: TP03
+    kind: paraphrase
+    query: is FDA going easy on part 11 validation requirements or do we still have to validate everything?
+    expect: [{doc_id: fda-part11-scope-2003, locator: III.C.1}]
+  - id: TP04
+    kind: paraphrase
+    query: if we type a doc on the computer then print it and sign the paper copy, is that a part 11 thing?
+    expect: [{doc_id: fda-part11-scope-2003, locator: III.B.1}]
+  - id: TP05
+    kind: paraphrase
+    query: is copying our data to an offsite server enough to count as a backup for GMP?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.1.e}]
+  - id: TP06
+    kind: paraphrase
+    query: can we just throw out an OOS result if we think the analyst messed up the test?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.2}]
+  - id: TP07
+    kind: paraphrase
+    query: we validated our LIMS when we installed it, do we also have to check each process we built in it?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.3}]
+  - id: TP08
+    kind: paraphrase
+    query: is a scanned pdf of a batch record ok to keep instead of the original?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.9}]
+  - id: TP09
+    kind: paraphrase
+    query: can supervisors approve batch records on screen instead of signing them by hand?
+    expect:
+      - {doc_id: fda-data-integrity-2018, locator: III.11}
+      - {doc_id: 21cfr11, locator: 11.2(a)}
+  - id: TP10
+    kind: paraphrase
+    query: if a tech types a number into the spreadsheet and deletes it before saving, does that still count?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.12}]
+  - id: TP11
+    kind: paraphrase
+    query: is it ok to do a couple of practice runs on the HPLC with real samples before the official run?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.13}]
+  - id: TP12
+    kind: paraphrase
+    query: do ppl need training on spotting faked or altered data?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.16}]
+  - id: TP13
+    kind: paraphrase
+    query: we found a bunch of data problems at one site, what does FDA expect us to do now?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.18}]
+  - id: TP14
+    kind: paraphrase
+    query: can we lean on the vendor's own testing instead of testing everything again ourselves?
+    expect: [{doc_id: fda-csa-2026, locator: V.A.5}]
+  - id: TP15
+    kind: paraphrase
+    query: how much checking does the tool we use to track who finished their training need?
+    expect: [{doc_id: fda-csa-2026, locator: appendix-a.example-2}]
+  - id: TP16
+    kind: paraphrase
+    query: what about our dashboard tool that pulls numbers from the quality system for trend reports?
+    expect: [{doc_id: fda-csa-2026, locator: appendix-a.example-3}]

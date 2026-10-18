@@ -1,0 +1,119 @@
+# DEVELOPER-DRAFTED HELD-OUT RETRIEVAL CHECK. APPROVED BY THE OWNER, 2026-10-15.
+#
+# A second plumbing check for Phase 1a, written on 2026-10-15 after the hybrid ranking
+# failed the paraphrase threshold of retrieval_smoke.yaml. The hybrid ranking and the
+# candidate change described in docs/decisions/0006-rag-corpus-and-index.md
+# ("Held-out check") were designed with retrieval_smoke.yaml in view, so they are
+# judged on these questions too. Like retrieval_smoke.yaml, it is not part of the
+# evaluation set, and its results are never reported as evaluation results.
+#
+# How it was written: from the text of the frozen corpus only. No retrieval of any
+# kind was run on these questions before the owner reviewed and approved them,
+# unchanged, on 2026-10-15. No expected section is one that retrieval_smoke.yaml names; three
+# (HL03, HP06, HP07) are paragraphs of § 11.300, which its lookup L03 expects as a
+# whole section. Where more than one section plainly answers a question, each is
+# listed.
+#
+# top_k, the hit rule and the thresholds are the same as retrieval_smoke.yaml's and
+# were fixed with the questions, before any run.
+purpose: Phase 1a held-out retrieval check (plumbing; not an evaluation)
+authored_by: Ravin Elango (owner); drafted by Claude Code 2026-10-15; reviewed and approved unchanged by the owner 2026-10-15
+reviewed_by_human: true
+top_k: 5
+min_hit_rate:
+  section_lookup: 0.8
+  paraphrase: 0.8
+
+queries:
+  # Section lookups: citation forms the first check does not use (a finer paragraph,
+  # "§" with a paragraph, a lowercase guidance item).
+  - id: HL01
+    kind: section_lookup
+    query: Under 21 CFR 11.10(k)(2), what must revision and change control procedures maintain?
+    expect: [{doc_id: 21cfr11, locator: 11.10(k)}]
+  - id: HL02
+    kind: section_lookup
+    query: What conditions does § 11.2(b) set for records submitted to FDA in electronic form?
+    expect: [{doc_id: 21cfr11, locator: 11.2(b)}]
+  - id: HL03
+    kind: section_lookup
+    query: What does 11.300(e) require for tokens and cards?
+    expect: [{doc_id: 21cfr11, locator: 11.300(e)}]
+  - id: HL04
+    kind: section_lookup
+    query: According to section III.B.2 of FDA's 2003 Part 11 guidance, which records count as Part 11 records?
+    expect: [{doc_id: fda-part11-scope-2003, locator: III.B.2}]
+  - id: HL05
+    kind: section_lookup
+    query: What does section V.A.4 of the computer software assurance guidance say about choosing assurance activities?
+    expect: [{doc_id: fda-csa-2026, locator: V.A.4}]
+  - id: HL06
+    kind: section_lookup
+    query: How does III.1.d of the data integrity guidance distinguish static from dynamic records?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.1.d}]
+
+  # Paraphrases: ordinary questions with no citation, avoiding the heading wording.
+  - id: HP01
+    kind: paraphrase
+    query: Does the system have to stop operators from doing steps in the wrong order?
+    expect: [{doc_id: 21cfr11, locator: 11.10(f)}]
+  - id: HP02
+    kind: paraphrase
+    query: Should the software confirm a person is permitted to do something before letting them change or sign a record?
+    expect:
+      - {doc_id: 21cfr11, locator: 11.10(g)}
+      - {doc_id: fda-data-integrity-2018, locator: III.4}
+  - id: HP03
+    kind: paraphrase
+    query: Must employees be told in writing that they are personally responsible for whatever is done under their electronic signature?
+    expect: [{doc_id: 21cfr11, locator: 11.10(j)}]
+  - id: HP04
+    kind: paraphrase
+    query: Before giving a new hire an electronic signature, what does the company have to check about them?
+    expect: [{doc_id: 21cfr11, locator: 11.100(b)}]
+  - id: HP05
+    kind: paraphrase
+    query: How do we make sure a fingerprint-based signature can only be used by the person it belongs to?
+    expect: [{doc_id: 21cfr11, locator: 11.200(b)}]
+  - id: HP06
+    kind: paraphrase
+    query: Are we expected to make people change their passwords from time to time?
+    expect: [{doc_id: 21cfr11, locator: 11.300(b)}]
+  - id: HP07
+    kind: paraphrase
+    query: What should happen when someone keeps trying to log in with a password that is not theirs?
+    expect: [{doc_id: 21cfr11, locator: 11.300(d)}]
+  - id: HP08
+    kind: paraphrase
+    query: Who should be given administrator rights on a lab computer system that holds manufacturing quality data?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.4}]
+  - id: HP09
+    kind: paraphrase
+    query: How should we hand out and keep track of worksheets that have not been filled in yet?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.6}]
+  - id: HP10
+    kind: paraphrase
+    query: Can we keep just a printed copy of an instrument result and delete the electronic file that could be reprocessed?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.10}]
+  - id: HP11
+    kind: paraphrase
+    query: When an analyst re-integrates chromatography data several times, do the earlier results need to be kept?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.14}]
+  - id: HP12
+    kind: paraphrase
+    query: An anonymous employee says someone may have faked lab records. Can we ignore it because we do not know who reported it?
+    expect: [{doc_id: fda-data-integrity-2018, locator: III.15}]
+  - id: HP13
+    kind: paraphrase
+    query: Can we archive required electronic records by printing them or putting them on film instead of keeping the original system running?
+    expect:
+      - {doc_id: fda-part11-scope-2003, locator: III.C.5}
+      - {doc_id: 21cfr11, locator: 11.10(c)}
+  - id: HP14
+    kind: paraphrase
+    query: Is general office software, such as the tools we use for messages and bookkeeping, covered by the requirement to validate device production software?
+    expect: [{doc_id: fda-csa-2026, locator: V.A.1}]
+  - id: HP15
+    kind: paraphrase
+    query: If we change the software that automatically controls temperature on our device production line, how do we tell FDA about it?
+    expect: [{doc_id: fda-csa-2026, locator: V.A.3}]
