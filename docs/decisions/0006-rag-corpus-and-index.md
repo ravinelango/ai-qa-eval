@@ -190,6 +190,42 @@ threshold.
   `hybrid` and the results are reported. No setting changes between or after these
   runs without the owner's approval.
 
+## Third check and the next change (fixed before either is run)
+Approved by the owner on 2026-10-18 (option 1 of the findings note,
+`reports/retrieval_smoke/findings-20261017.md`), after both rankings failed the
+original set on the same four paraphrases.
+- **Third question set:** `evals/dev_checks/retrieval_third.yaml`, with 5 section
+  lookups and 16 paraphrases. Claude Code drafted them from the corpus text only, and
+  no retrieval has been run on them. No expected section is named by an earlier set or
+  nested under or over one, and a test checks that. The paraphrases are phrased the
+  way staff ask (abbreviations, informal wording, no regulatory terms), per the
+  owner's note. Top-k 5, the hit rule and the 0.8 thresholds are unchanged. The owner
+  reviews the set before its first run, and any change from that review is made
+  before that run.
+- **Candidate change:** `retrieval.mode: hybrid_prf`. This is the hybrid ranking with
+  the keyword query expanded by pseudo-relevance feedback from the embedding ranking.
+  The 10 chunks the embedding ranks highest are taken as feedback, and their 10
+  strongest terms are added to the keyword query by the Rocchio formula (alpha 1,
+  beta 0.75). BM25 then scores the expanded, weighted query. Fusion, the 50
+  candidates and citations-first are unchanged.
+- **Why this change:** the findings note shows that for P01, P08 and P14 the embedding
+  found the right section (ranks 1, 4 and 1). The keyword ranking, sharing no words
+  with the everyday wording, ranked it 46th or lower, and fusion then pushed it out.
+  Expanding the keyword query with the vocabulary of what the embedding found lets
+  the keyword ranking match regulatory terms the question never uses. It does this
+  without a hand-written synonym list, which could only have been written with those
+  four questions in view.
+- **Parameters:** 10 feedback chunks and 10 expansion terms (the usual defaults of
+  pseudo-relevance feedback, as in Anserini's RM3), and the Rocchio weights alpha 1
+  and beta 0.75 suggested in Manning, Raghavan and Schütze, *Introduction to
+  Information Retrieval* (2008), section 9.1.1. They were chosen before the change ran
+  on any question and are not tuned. A test pins them.
+- **Decision rule:** after the owner's review, `hybrid` (the default) and `hybrid_prf`
+  each run once on all three sets. The candidate becomes the default only if it
+  reaches every threshold on all three. Otherwise the default stays `hybrid` and the
+  results are reported. No setting changes between or after these runs without the
+  owner's approval.
+
 ## Spending
 Phase 1a makes no API calls. The generator alias (`sonnet`) is refused without
 `--allow-paid`. No paid run is approved, including the optional live smoke.

@@ -61,6 +61,34 @@ def test_holdout_spec_matches_the_first_checks_rules_and_names_new_sections() ->
             )
 
 
+THIRD_SPEC = REPO_ROOT / "evals" / "dev_checks" / "retrieval_third.yaml"
+
+
+def test_third_spec_matches_the_rules_and_names_only_new_sections() -> None:
+    first, _ = load_spec(DEFAULT_SPEC)
+    holdout, _ = load_spec(HOLDOUT_SPEC)
+    spec, _ = load_spec(THIRD_SPEC)
+    assert (spec.top_k, spec.min_hit_rate) == (first.top_k, first.min_hit_rate)
+    kinds = [q.kind for q in spec.queries]
+    assert (kinds.count("section_lookup"), kinds.count("paraphrase")) == (5, 16)
+    earlier = [e for s in (first, holdout) for q in s.queries for e in q.expect]
+    for query in spec.queries:
+        for e in query.expect:
+            # Not named by an earlier set, nor nested under or over a section one names.
+            for old in earlier:
+                assert not matches(e.doc_id, e.locator, old), f"{query.id}: {e} is under {old}"
+                assert not matches(old.doc_id, old.locator, e), f"{query.id}: {old} is under {e}"
+    used = {q.query for s in (first, holdout) for q in s.queries}
+    assert not used & {q.query for q in spec.queries}
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    known = {(c["doc_id"], c["locator"]) for c in manifest["chunks"]}
+    for query in spec.queries:
+        for e in query.expect:
+            assert any(d == e.doc_id and matches(d, loc, e) for d, loc in known), (
+                f"{query.id}: {e} matches no chunk"
+            )
+
+
 @pytest.mark.parametrize(
     ("locator", "expected", "hit"),
     [
