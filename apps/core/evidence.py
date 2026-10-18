@@ -37,7 +37,8 @@ from apps.core.types import CompletionRequest, CompletionResponse, FailedAttempt
 # 4: retrieval mode, fingerprint and citations; each chunk's embedding, keyword and
 #    citation details.
 # 5: the reranker and each chunk's fused and reranker scores.
-RUN_FILE_SCHEMA_VERSION = 5
+# 6: the expanded keyword query (hybrid_prf).
+RUN_FILE_SCHEMA_VERSION = 6
 
 
 class _Model(BaseModel):
@@ -128,12 +129,14 @@ class RetrievedChunkRecord(_Model):
 class RetrievalRecord(_Model):
     query: str
     top_k: int
-    mode: Literal["dense", "hybrid", "hybrid_rerank"]
+    mode: Literal["dense", "hybrid", "hybrid_rerank", "hybrid_prf"]
     retrieval_fingerprint: str
     # Section citations recognized in the query, in order (hybrid modes).
     citations: list[str]
     reranker: str | None
     reranker_fingerprint: str | None
+    # hybrid_prf: the keyword query's term weights after feedback expansion.
+    query_expansion: dict[str, float] | None
     embedder: str
     embedding_fingerprint: str
     chunk_manifest_sha256: str

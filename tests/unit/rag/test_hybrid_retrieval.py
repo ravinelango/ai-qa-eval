@@ -13,6 +13,7 @@ from apps.rag.config import RagConfig, RetrievalSettings
 from apps.rag.embedding import HashingEmbedder
 from apps.rag.errors import RagError, StaleIndexError
 from apps.rag.index import IndexStamp
+from apps.rag.lexical import Analyzer
 from apps.rag.rerank import RerankScore
 from apps.rag.retrieve import Retriever, VectorIndex
 from tests.rag_helpers import InMemoryIndex, part99_manifest
@@ -221,3 +222,36 @@ def test_rerank_mode_needs_a_reranker_and_its_fingerprint_counts() -> None:
     record = hybrid.retrieve("loss management")
     assert (hybrid.fingerprint, record.reranker) == (SHIPPED.fingerprint(), None)
     assert all(r.rerank_score is None and r.fused_score == r.score for r in record.results)
+
+
+def test_feedback_lets_the_keyword_ranking_match_words_the_question_lacks() -> None:
+    query = "zzzq qqqz"  # no term in the corpus
+    plain = _retriever(FixedIndex(IDS)).retrieve(query, top_k=5)
+    assert all(r.lexical_rank is None for r in plain.results)
+    assert plain.query_expansion is None
+    expanded = _retriever(FixedIndex(IDS), mode="hybrid_prf").retrieve(query, top_k=5)
+    assert expanded.mode == "hybrid_prf"
+    assert expanded.query_expansion is not None
+    assert {"zzzq", "qqqz"} <= expanded.query_expansion.keys()
+    assert len(expanded.query_expansion) <= 2 + SHIPPED.feedback.terms
+    assert any(r.lexical_rank is not None for r in expanded.results)
+
+
+def test_feedback_comes_from_the_embedding_ranking_top_chunks() -> None:
+    index = FixedIndex(IDS)
+    one = _retriever(
+        index, mode="hybrid_prf", feedback={**SHIPPED.feedback.model_dump(), "docs": 1}
+    )
+    record = one.retrieve("zzzq", top_k=3)
+    assert record.query_expansion is not None
+    feedback_terms = set(record.query_expansion) - {"zzzq"}
+    first = Analyzer().terms(CHUNKS[IDS[0]].embed_text)
+    assert feedback_terms <= set(first)  # all from the embedding's first chunk
+
+
+def test_feedback_settings_count_only_in_the_feedback_mode() -> None:
+    changed = {**SHIPPED.feedback.model_dump(), "terms": 3}
+    assert _settings(feedback=changed).fingerprint() == SHIPPED.fingerprint()
+    prf = _settings(mode="hybrid_prf")
+    assert prf.fingerprint() != SHIPPED.fingerprint()
+    assert _settings(mode="hybrid_prf", feedback=changed).fingerprint() != prf.fingerprint()

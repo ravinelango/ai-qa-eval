@@ -1,6 +1,6 @@
 """Retrieve the top-k chunks for a query and describe them as saved evidence.
 
-Three modes (config/rag.yaml, retrieval.mode):
+Four modes (config/rag.yaml, retrieval.mode):
 
 - dense: the chunks whose embeddings are closest to the query's (cosine).
 - hybrid: the embedding ranking and a BM25 keyword ranking (apps.rag.lexical), each
@@ -13,6 +13,10 @@ Three modes (config/rag.yaml, retrieval.mode):
   chunks, are scored by a cross-encoder (apps.rag.rerank) that reads the question and
   each chunk's embedded text together, and ranked by that score. Cited chunks still
   come first. Ties are broken by fused score, embedding similarity, then chunk ID.
+- hybrid_prf: as hybrid, but the keyword query is first expanded by pseudo-relevance
+  feedback (apps.rag.lexical.rocchio_expansion): the strongest terms of the chunks
+  the embedding ranks highest are added, so the keyword ranking can match terms the
+  question never uses. The expanded query's term weights are recorded.
 
 Each retrieved chunk records its score, where each ranking placed it, its reranker
 score and the citation that points at it, so a record shows why it was returned.
@@ -35,7 +39,7 @@ from apps.rag.corpus import load_sources, verify_snapshot
 from apps.rag.embedding import Embedder
 from apps.rag.errors import RagError, StaleIndexError
 from apps.rag.index import ChunkIndex, IndexStamp
-from apps.rag.lexical import Bm25Index
+from apps.rag.lexical import Bm25Index, rocchio_expansion
 from apps.rag.rerank import Reranker
 
 
@@ -130,19 +134,32 @@ class Retriever:
         vector: Sequence[float],
         k: int,
         citations: list[Citation],
-    ) -> list[_Candidate]:
+    ) -> tuple[list[_Candidate], dict[str, float] | None]:
         depth = min(self.settings.candidates, len(self._chunks))
         rrf_k = self.settings.rrf_k
         candidates: dict[str, _Candidate] = {}
-        for rank, (chunk_id, similarity) in enumerate(
-            self.index.query(vector, depth, self.stamp), start=1
-        ):
+        dense = self.index.query(vector, depth, self.stamp)
+        for rank, (chunk_id, similarity) in enumerate(dense, start=1):
             if chunk_id not in self._chunks:
                 raise StaleIndexError(f"index returned {chunk_id}, which the manifest lacks")
             c = candidates.setdefault(chunk_id, _Candidate(chunk_id))
             c.dense_similarity, c.dense_rank = similarity, rank
             c.score += 1.0 / (rrf_k + rank)
-        for rank, (chunk_id, score) in enumerate(lexical.search(query, depth), start=1):
+        expansion: dict[str, float] | None = None
+        if self.settings.mode == "hybrid_prf":
+            feedback = self.settings.feedback
+            expansion = rocchio_expansion(
+                lexical,
+                query,
+                [chunk_id for chunk_id, _ in dense[: feedback.docs]],
+                terms=feedback.terms,
+                alpha=feedback.alpha,
+                beta=feedback.beta,
+            )
+            keyword = lexical.search_weighted(expansion, depth)
+        else:
+            keyword = lexical.search(query, depth)
+        for rank, (chunk_id, score) in enumerate(keyword, start=1):
             c = candidates.setdefault(chunk_id, _Candidate(chunk_id))
             c.lexical_score, c.lexical_rank = score, rank
             c.score += 1.0 / (rrf_k + rank)
@@ -172,7 +189,7 @@ class Retriever:
             if best is not None:
                 first.append(best)
         first += [c for c in ranked if c.cited_as is not None and c not in first]
-        return (first + [c for c in ranked if c.cited_as is None])[:k]
+        return (first + [c for c in ranked if c.cited_as is None])[:k], expansion
 
     def retrieve(self, query: str, *, top_k: int | None = None) -> RetrievalRecord:
         k = top_k or self.top_k
@@ -194,11 +211,11 @@ class Retriever:
         ) as observation:
             vector = self.embedder.embed_query(query)
             citations = parse_citations(query) if lexical is not None else []
-            ranked = (
-                self._hybrid(lexical, query, vector, k, citations)
-                if lexical is not None
-                else self._dense(vector, k)
-            )
+            expansion: dict[str, float] | None = None
+            if lexical is not None:
+                ranked, expansion = self._hybrid(lexical, query, vector, k, citations)
+            else:
+                ranked = self._dense(vector, k)
             results: list[RetrievedChunkRecord] = []
             for rank, candidate in enumerate(ranked, start=1):
                 chunk = self._chunks.get(candidate.chunk_id)
@@ -242,6 +259,7 @@ class Retriever:
             citations=[c.locator for c in citations],
             reranker=reranker.name if reranker else None,
             reranker_fingerprint=reranker.fingerprint if reranker else None,
+            query_expansion=expansion,
             embedder=self.embedder.name,
             embedding_fingerprint=self.embedder.fingerprint,
             chunk_manifest_sha256=self.manifest_sha256,

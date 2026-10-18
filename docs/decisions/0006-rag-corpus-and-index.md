@@ -87,8 +87,8 @@ lookups 12/12 passed, paraphrases 12/16 (0.75) did not.
   2026-10-15.
 - **Modes:** `retrieval.mode` in `config/rag.yaml`. `dense` is the embedding ranking
   alone, as in the first run. `hybrid`, the default, is described below.
-  `hybrid_rerank` is the candidate change described under "Held-out check" and is not
-  the default; `make retrieval-smoke SMOKE_ARGS="--mode hybrid_rerank"` selects it for
+  `hybrid_rerank` (the candidate under "Held-out check") and `hybrid_prf` (the
+  candidate under "Third check") are not the default; `make retrieval-smoke SMOKE_ARGS="--mode hybrid_rerank"` selects it for
   one run.
 - **Keyword ranking:** BM25 over the same text that is embedded (heading path, label,
   text). The text is lowercased, a possessive "'s" is dropped, and the rest is split
@@ -120,7 +120,8 @@ lookups 12/12 passed, paraphrases 12/16 (0.75) did not.
   chunk the fused score, embedding similarity and rank, BM25 score and rank, and the
   citation that matched it. With `hybrid_rerank`, records also hold the reranker's
   name and fingerprint, and each chunk's reranker score and the passage tokens cut to
-  fit its 512-token limit. Run files are now schema 5 and smoke reports schema 3.
+  fit its 512-token limit. With `hybrid_prf`, records hold the expanded keyword
+  query's term weights. Run files are now schema 6 and smoke reports schema 4.
 - **Limits of the smoke check:** the hybrid ranking was designed after seeing which
   smoke queries failed, so a pass on the same 28 queries is not independent evidence
   that it works on other questions. The citation rule targets the section-lookup kind
@@ -145,7 +146,7 @@ lookups 12/12 passed, paraphrases 12/16 (0.75) did not.
   Unretrieved citations are flagged, never dropped.
 
 ## Evidence
-Run files are now schema version 5. The manifest records the prompt SHA-256 and the
+Run files are now schema version 6. The manifest records the prompt SHA-256 and the
 corpus, chunk-manifest, embedding and retrieval fingerprints. Each answer record
 holds its full retrieval (IDs, labels, text, scores and ranking details), so run
 files do not depend on traces. Traces record the prompt version and the retrieved
@@ -225,6 +226,10 @@ original set on the same four paraphrases.
   reaches every threshold on all three. Otherwise the default stays `hybrid` and the
   results are reported. No setting changes between or after these runs without the
   owner's approval.
+- **Observed before any run (plumbing check, one invented question):** Rocchio weights
+  feedback terms by frequency, not rarity. So the strongest expansion terms can be
+  words common across the corpus ("electron", "record", "part"), which BM25 then
+  weights low, and the expansion may change little. The design is unchanged.
 
 ## Spending
 Phase 1a makes no API calls. The generator alias (`sonnet`) is refused without

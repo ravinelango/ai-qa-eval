@@ -37,7 +37,8 @@ from apps.rag.retrieve import Retriever, build_retriever
 DEFAULT_SPEC = REPO_ROOT / "evals" / "dev_checks" / "retrieval_smoke.yaml"
 # 2: retrieval records carry the ranking mode, fingerprint and per-chunk details.
 # 3: retrieval records carry the reranker and each chunk's fused and reranker scores.
-REPORT_SCHEMA_VERSION = 3
+# 4: retrieval records carry the expanded keyword query (hybrid_prf).
+REPORT_SCHEMA_VERSION = 4
 
 QueryKind = Literal["section_lookup", "paraphrase"]
 
@@ -122,7 +123,7 @@ class KindSummary(_Strict):
 
 
 class SmokeReport(_Strict):
-    schema_version: Literal[3] = 3
+    schema_version: Literal[4] = 4
     manifest: RunManifest
     spec_path: str
     spec_sha256: str
@@ -238,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=REPO_ROOT / "runs" / "retrieval_smoke")
     parser.add_argument(
         "--mode",
-        choices=["dense", "hybrid", "hybrid_rerank"],
+        choices=["dense", "hybrid", "hybrid_rerank", "hybrid_prf"],
         help="retrieval mode for this run (default: retrieval.mode in config/rag.yaml)",
     )
     args = parser.parse_args(argv)

@@ -151,11 +151,12 @@ make retrieval-smoke  # developer-authored retrieval check on the real index
 - **Retriever:** the embedding ranking fused with a BM25 keyword ranking, with chunks
   a question cites by section number ranked first. Each retrieved chunk records its
   score in both rankings and the citation that matched it. An optional mode,
-  `hybrid_rerank`, rescores the top 50 with a pinned cross-encoder; it is the one
-  candidate change fixed in advance and is not the default.
+  `hybrid_rerank`, rescores the top 50 with a pinned cross-encoder; another,
+  `hybrid_prf`, expands the keyword query with terms from the embedding's top
+  results. Each was fixed in advance as a candidate change; neither is the default.
 - **Assistant:** `answer()` returns the behavior class, answer, cited and unretrieved
   citations, retrieved chunks with scores, the prompt version and hash, and the trace
-  ID. Run files (schema 5) include fingerprints and retrieved text.
+  ID. Run files (schema 6) include fingerprints and retrieved text.
 - **Chunk manifest:** 149 chunks (max 509 of 512 tokens), committed, and reproduced
   byte for byte by `make ingest-check` and by a CI test that uses the committed,
   pinned tokenizer (`data/models/bge-small-en-v1.5/`, MIT, with its source recorded).
@@ -165,6 +166,9 @@ make retrieval-smoke  # developer-authored retrieval check on the real index
 - **Held-out check:** 21 more developer-drafted queries (6 lookups, 15 paraphrases) on
   sections the first check does not name, with the same rules, approved by the owner
   before their first run.
+- **Third check:** 21 developer-drafted queries (5 lookups, 16 paraphrases in
+  staff-style wording) on sections neither earlier check names. Not yet run; waiting
+  for the owner's review.
 
 **How it is verified (offline):** synthetic eCFR XML and generated PDFs, the hashing
 embedder, the real Chroma client and the scripted fake provider. Every fixture is

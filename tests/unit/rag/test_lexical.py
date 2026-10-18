@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from apps.rag.lexical import Analyzer, Bm25Index
+from apps.rag.lexical import Analyzer, Bm25Index, rocchio_expansion
 
 
 def test_analyzer_lowercases_drops_stop_words_and_possessives_and_stems() -> None:
@@ -45,3 +45,33 @@ def test_rare_terms_outweigh_common_ones_and_ties_break_by_id() -> None:
 def test_document_ids_must_be_unique() -> None:
     with pytest.raises(ValueError, match="unique"):
         Bm25Index([("a", "x"), ("a", "y")], k1=1.2, b=0.75)
+
+
+def test_weighted_search_with_unit_weights_is_plain_search() -> None:
+    index = Bm25Index(
+        [("a", "audit trail audit"), ("b", "password review"), ("c", "audit password")],
+        k1=1.2,
+        b=0.75,
+    )
+    assert index.search_weighted({"audit": 1.0, "password": 1.0}, 10) == index.search(
+        "audit password", 10
+    )
+    doubled = dict(index.search_weighted({"audit": 2.0}, 10))
+    assert math.isclose(doubled["a"], 2 * dict(index.search("audit", 10))["a"])
+
+
+def test_rocchio_expansion_adds_the_feedback_documents_strongest_terms() -> None:
+    index = Bm25Index(
+        [("a", "audit trail audit trail log"), ("b", "password review"), ("c", "shared login")],
+        k1=1.2,
+        b=0.75,
+    )
+    weights = rocchio_expansion(index, "change history", ["a"], terms=2, alpha=1.0, beta=0.75)
+    # Query terms share alpha; "audit" and "trail" are each 2/5 of document a; "log"
+    # (1/5) is cut by terms=2.
+    assert weights == {"chang": 0.5, "histori": 0.5, "audit": 0.75 * 0.4, "trail": 0.75 * 0.4}
+    # No query terms: only feedback. Averaged over a and b, "password" and "review"
+    # (1/2 of b, so 1/4) beat "audit" (2/5 of a, so 1/5); the tie breaks by term.
+    assert rocchio_expansion(index, "the of", ["a", "b"], terms=1, alpha=1.0, beta=1.0) == {
+        "password": 0.25
+    }

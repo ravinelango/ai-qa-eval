@@ -97,6 +97,16 @@ retrieval:
     k1: 1.2
     b: 0.75
   rrf_k: 60
+  # hybrid_prf only (the candidate fixed in advance, docs/decisions/0006, "Third check
+  # and the next change"): the keyword query is expanded with the strongest terms of
+  # the embedding ranking's top chunks, by the Rocchio formula. 10 and 10 are the
+  # usual pseudo-relevance feedback defaults (as in Anserini's RM3); alpha 1 and beta
+  # 0.75 are the weights Manning, Raghavan and Schutze suggest (2008, section 9.1.1).
+  feedback:
+    docs: 10
+    terms: 10
+    alpha: 1.0
+    beta: 0.75
 
 generation:
   # Provisional generator (README, "Decisions recorded for Phase 1").

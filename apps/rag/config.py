@@ -135,22 +135,36 @@ class Bm25Settings(_Strict):
     b: float = Field(ge=0, le=1)
 
 
+class FeedbackSettings(_Strict):
+    """Pseudo-relevance feedback for hybrid_prf (Rocchio, from the embedding ranking)."""
+
+    # How many of the embedding ranking's top chunks are taken as feedback.
+    docs: int = Field(ge=1)
+    # How many of their strongest terms are added to the keyword query.
+    terms: int = Field(ge=1)
+    alpha: float = Field(ge=0)
+    beta: float = Field(ge=0)
+
+
 class RetrievalSettings(_Strict):
     # Bump when a code change alters the ranking (keyword analysis, citation rules,
     # fusion), so records from before and after cannot pass as the same method.
     version: int = Field(ge=1)
     top_k: int = Field(ge=1, le=50)
-    mode: Literal["dense", "hybrid", "hybrid_rerank"]
+    mode: Literal["dense", "hybrid", "hybrid_rerank", "hybrid_prf"]
     # Hybrid modes: how many chunks each ranking (embedding, keyword) contributes
     # to the fusion, and how many of the fused chunks the reranker scores.
     candidates: int = Field(ge=1)
     bm25: Bm25Settings
     # Reciprocal rank fusion constant: a chunk scores 1 / (rrf_k + rank) per ranking.
     rrf_k: int = Field(ge=1)
+    feedback: FeedbackSettings
 
     def fingerprint(self) -> str:
-        """What determines the ranking. top_k is left out; each record states it."""
-        return canonical_sha256(self.model_dump(mode="json", exclude={"top_k"}))
+        """What determines the ranking. top_k is left out; each record states it. The
+        feedback settings count only in hybrid_prf, the one mode that uses them."""
+        exclude = {"top_k"} if self.mode == "hybrid_prf" else {"top_k", "feedback"}
+        return canonical_sha256(self.model_dump(mode="json", exclude=exclude))
 
 
 class GenerationSettings(_Strict):

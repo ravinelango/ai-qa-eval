@@ -328,7 +328,7 @@ def test_run_file_stands_alone_with_fingerprints_and_retrieved_text(tmp_path: Pa
     saved = read_run_file(path)
     assert saved == run
     raw = json.loads(path.read_text())
-    assert raw["schema_version"] == 5
+    assert raw["schema_version"] == 6
     top = raw["answers"][0]["retrieval"]["results"][0]
     assert top["chunk_id"] == EXPECTED_TOP
     assert top["text"].startswith("(e) Use of placeholder change logs")

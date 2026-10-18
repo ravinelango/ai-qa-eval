@@ -27,6 +27,7 @@ def test_shipped_config_resolves_and_points_at_real_files() -> None:
         "candidates": 50,
         "bm25": {"k1": 1.2, "b": 0.75},
         "rrf_k": 60,
+        "feedback": {"docs": 10, "terms": 10, "alpha": 1.0, "beta": 0.75},
     }
     # The generator alias exists in the model registry.
     ModelRegistry.load().resolve(config.generation.model)
@@ -54,6 +55,7 @@ def test_excerpts_are_rendered_from_the_saved_retrieval_record() -> None:
         citations=[],
         reranker=None,
         reranker_fingerprint=None,
+        query_expansion=None,
         embedder="e",
         embedding_fingerprint="f",
         chunk_manifest_sha256="m",
