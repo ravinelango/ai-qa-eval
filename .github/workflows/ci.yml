@@ -48,6 +48,9 @@ jobs:
       - name: Offline demo (fake provider, no keys)
         run: uv run python -m apps.core.demo --out "$RUNNER_TEMP/demo"
 
+      - name: Golden-set evaluator on the synthetic sample (fake provider, no keys)
+        run: uv run python -m evals.golden --out "$RUNNER_TEMP/golden"
+
       - name: Build wheel and check packaged modules
         run: |
           uv build --wheel --out-dir "$RUNNER_TEMP/dist"

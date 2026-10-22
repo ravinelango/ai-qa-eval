@@ -44,6 +44,10 @@ check: lint typecheck test ## Everything ordinary CI runs
 demo: ## Offline fake-provider demo (synthetic output, no keys, no network)
 	$(UV) run python -m apps.core.demo
 
+.PHONY: golden
+golden: ## Golden-set evaluator on the synthetic sample (fake provider, offline)
+	$(UV) run python -m evals.golden
+
 .PHONY: build
 build: ## Build the wheel and verify its packages
 	$(UV) build --wheel --out-dir dist
@@ -55,7 +59,7 @@ test-live: ## PAID: one real API call (needs ANTHROPIC_API_KEY)
 
 .PHONY: clean
 clean: ## Remove caches, build output and local demo runs
-	rm -rf .pytest_cache .mypy_cache .ruff_cache dist runs/demo
+	rm -rf .pytest_cache .mypy_cache .ruff_cache dist runs/demo runs/golden
 
 # --- Later phases --------------------------------------------------------------
 

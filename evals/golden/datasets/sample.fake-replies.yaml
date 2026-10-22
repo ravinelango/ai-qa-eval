@@ -1,0 +1,27 @@
+# SYNTHETIC scripted replies for the fake provider, keyed by case id. They were
+# written by hand to show the evaluator's output, including one deliberate
+# failure (signature-uniqueness). They are not model output.
+scope:
+  text: >-
+    [SCRIPTED FAKE REPLY] Part 11 sets criteria under which FDA considers electronic
+    records and electronic signatures trustworthy, reliable and equivalent to paper.
+audit-trail:
+  text: >-
+    [SCRIPTED FAKE REPLY] 11.10(e) requires secure, computer-generated, time-stamped
+    audit trails recording operator entries and actions that create, modify or delete
+    electronic records. Changes must not obscure previously recorded information.
+signature-manifestation:
+  text: >-
+    [SCRIPTED FAKE REPLY] Per 11.50, the record shows the printed name of the signer,
+    the date and time of signing, and the meaning of the signature (e.g. approval).
+signature-uniqueness:
+  text: >-
+    [SCRIPTED FAKE REPLY] Yes, a team signature can be shared if access is logged.
+password-controls:
+  text: >-
+    [SCRIPTED FAKE REPLY] 11.300 requires maintaining the uniqueness of each combined
+    identification code and password, so no two individuals have the same combination.
+out-of-scope:
+  text: >-
+    [SCRIPTED FAKE REPLY] That is outside the scope of 21 CFR Part 11, so I cannot
+    answer it.

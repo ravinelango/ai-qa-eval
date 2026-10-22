@@ -1,0 +1,61 @@
+# SYNTHETIC sample golden set. Hand-written to exercise the evaluator; these are
+# not owner-labeled cases and their results are never evaluation evidence.
+# Real golden sets come from the labeling workflow (Phase 1b).
+#
+# Expectations are case-insensitive. A must_include entry that is a list passes
+# when any one of its alternatives appears in the answer.
+name: part11-sample
+version: "1"
+synthetic: true
+description: Six questions on 21 CFR Part 11, including one out-of-scope question.
+cases:
+  - id: scope
+    question: What does 21 CFR Part 11 regulate?
+    expect:
+      must_include:
+        - electronic records
+        - electronic signatures
+    tags: [scope]
+
+  - id: audit-trail
+    question: What does 21 CFR 11.10(e) require for audit trails?
+    expect:
+      must_include:
+        - audit trail
+        - [time-stamped, timestamped, time stamped]
+        - [obscure previously recorded, not obscure]
+      must_match:
+        - '11\.10\s*\(e\)'
+    tags: [controls]
+
+  - id: signature-manifestation
+    question: Under 11.50, what must a signed electronic record show?
+    expect:
+      must_include:
+        - printed name
+        - [date and time, time and date]
+        - meaning
+    tags: [signatures]
+
+  - id: signature-uniqueness
+    question: Can two employees share one electronic signature under Part 11?
+    expect:
+      must_include:
+        - unique to one individual
+      must_not_include:
+        - can be shared
+    tags: [signatures]
+
+  - id: password-controls
+    question: What does 11.300 require for identification codes and passwords?
+    expect:
+      must_include:
+        - [uniqueness, unique]
+        - [identification code, id code]
+    tags: [controls]
+
+  - id: out-of-scope
+    question: What internal temperature should poultry be cooked to?
+    expect:
+      expect_decline: true
+    tags: [refusal]

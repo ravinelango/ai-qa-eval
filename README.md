@@ -40,6 +40,7 @@ Requires [uv](https://docs.astral.sh/uv/). uv installs Python 3.12 if needed.
 make setup      # uv sync --locked + pre-commit hooks
 make check      # ruff, mypy --strict, unit + offline integration tests
 make demo       # scripted fake-provider demo -> runs/demo/<run_id>/{run.json,trace.jsonl}
+make golden     # golden-set evaluator on the synthetic sample -> runs/golden/<run_id>/run.json
 ```
 
 `make demo` prints a SYNTHETIC banner. Its "model replies" are fixed strings in
@@ -116,6 +117,52 @@ own PR, with its tests and live mode preserved.
 - No call has been made to the Anthropic API.
 - No trace has been sent to Langfuse Cloud.
 - Both integrations are tested against their SDKs offline only.
+
+## Golden-set evaluator
+
+A small evaluator in `evals/golden/`: a fixed set of questions, deterministic checks on
+each answer, and a self-contained run file. It works with any model alias and system
+prompt; the Phase 1a RAG assistant will plug in as another target.
+
+**Golden set format** (YAML, see `evals/golden/datasets/sample.yaml`): a header (`name`,
+`version`, `synthetic`, optional `decline_markers`) and cases. Each case has an `id`, a
+`question`, optional `tags`, and `expect`:
+
+| Check | Passes when |
+|---|---|
+| `must_include` | every phrase appears; a list entry passes if any one alternative appears |
+| `must_not_include` | none of the phrases appear |
+| `must_match` | every regex matches (`re.search`, case-insensitive) |
+| `expect_decline` | the provider refused, or the answer contains a decline marker |
+
+Phrase checks ignore case, extra whitespace and curly quotes. A case passes only when
+all its checks pass; a case that does not expect a decline also fails on a provider
+refusal. The whole file is validated before any call (unique IDs, valid regexes, at
+least one check per case, no unknown keys).
+
+**Running it**
+
+```bash
+make golden                                          # sample set, fake provider, offline
+uv run python -m evals.golden --golden my-set.yaml --model fake --fake-replies replies.yaml
+uv run python -m evals.golden --golden my-set.yaml --model sonnet --allow-paid \
+    --system-prompt-file prompt.txt --min-pass-rate 0.9
+```
+
+Paid aliases go through the same `--allow-paid` and budget rules as every other paid
+command. `--min-pass-rate` makes the command exit 1 below the threshold. A provider
+error on one case is recorded as an `error` result (it counts as not passed) and the run
+continues.
+
+**Run file** (`runs/golden/<run_id>/run.json`): the standard run file (manifest, every
+request and response or error) plus the golden set's path and SHA-256, the target
+(model, system prompt, prompt version), per-case check results with the answer, and a
+summary with per-tag counts.
+
+**The shipped sample is synthetic.** Its six cases and the scripted replies are
+hand-written; one reply is deliberately wrong, so the sample run shows 5/6. Runs that use
+a synthetic golden set or the fake provider are marked `synthetic: true` and are never
+evaluation evidence. No golden-set run against a real model has been made yet.
 
 ## Limitations (Phase 0)
 
